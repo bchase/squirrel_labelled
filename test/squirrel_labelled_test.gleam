@@ -273,8 +273,4 @@ pub fn insert_user(
 
   sl.wrapper_func_src(func2, p2)
   |> should.equal(expected_wrapper_func_src)
-
-  io.println("")
-  io.println(sl.squirrel_wrapper_funcs_with_labelled_params(src))
-  False |> should.equal(True)
 }

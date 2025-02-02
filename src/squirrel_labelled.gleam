@@ -6,6 +6,7 @@ import gleam/result
 import gleam/list
 import gleam/regexp.{type Regexp, type Match, Match}
 import simplifile
+import tom
 
 pub type Arg {
   Arg(
@@ -14,14 +15,41 @@ pub type Arg {
   )
 }
 
-pub fn write_squirrel_wrapper_funcs_with_labelled_params(src: String) -> String {
-  src
-  |> parse_func_srcs
-  |> list.map(fn(func) {
-    let params = labelled_params_for(func)
-    wrapper_func_src(func, params)
-  })
-  |> string.join("\n\n")
+pub fn main() {
+  let squirrel_sql = "src/" <> project_name() <> "/sql.gleam"
+  let assert Ok(src) = simplifile.read(squirrel_sql)
+
+  write_squirrel_wrapper_funcs_with_labelled_params(src)
+
+  Nil
+}
+
+fn project_name() -> String {
+  let assert Ok(output) = simplifile.read("gleam.toml")
+  let assert Ok(config) = tom.parse(output)
+
+  case tom.get_string(config, ["name"]) {
+    Error(_) -> panic as "Cannot determine project name from `gleam.toml`"
+    Ok(name) -> name
+  }
+}
+
+pub fn write_squirrel_wrapper_funcs_with_labelled_params(src: String) -> Nil {
+  let project_name = project_name()
+  let file = "src/" <> project_name <> "/labelled_sql.gleam"
+
+  let funcs_src = squirrel_wrapper_funcs_with_labelled_params(src)
+
+  let output =
+    [
+      "import " <> project_name <> "/sql",
+      funcs_src
+    ]
+    |> string.join("\n\n")
+
+  let assert Ok(_) = simplifile.write(file, output)
+
+  Nil
 }
 
 pub fn squirrel_wrapper_funcs_with_labelled_params(src: String) -> String {
