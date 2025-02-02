@@ -14,6 +14,26 @@ pub type Arg {
   )
 }
 
+pub fn write_squirrel_wrapper_funcs_with_labelled_params(src: String) -> String {
+  src
+  |> parse_func_srcs
+  |> list.map(fn(func) {
+    let params = labelled_params_for(func)
+    wrapper_func_src(func, params)
+  })
+  |> string.join("\n\n")
+}
+
+pub fn squirrel_wrapper_funcs_with_labelled_params(src: String) -> String {
+  src
+  |> parse_func_srcs
+  |> list.map(fn(func) {
+    let params = labelled_params_for(func)
+    wrapper_func_src(func, params)
+  })
+  |> string.join("\n\n")
+}
+
 pub fn parse_args(sql: String) -> Result(List(Arg), String) {
   case detect_query_type(sql) {
     Select | Update | Delete -> parse_select_update_delete_syntax(sql)
@@ -176,6 +196,58 @@ pub type Func {
     params: List(String),
     sql_args: List(Arg),
   )
+}
+
+// pub type LabelledWrapperFunc {
+//   LabelledWrapperFunc(
+//     func: Func,
+//     params:
+//   )
+// }
+
+pub type LabelledParam {
+  LabelledParam(
+    name: String,
+    label: String,
+  )
+}
+
+pub fn labelled_params_for(func: Func) -> List(LabelledParam) {
+  func.sql_args
+  |> list.map(fn(arg) {
+    LabelledParam(
+      name: "arg_" <> int.to_string(arg.num),
+      label: arg.label,
+    )
+  })
+  |> fn(params) {
+    [LabelledParam(name: "db", label: "db"), ..params]
+  }
+}
+
+pub fn wrapper_func_src(func: Func, params: List(LabelledParam)) -> String {
+  let params =
+    params
+    |> list.map(fn(param) {
+      "  " <> param.label <> " " <> param.name <> ","
+    })
+
+  let body =
+    func.params
+    |> string.join(", ")
+    |> fn(ps) {
+      "  sql." <> func.name <> "(" <> ps <> ")"
+    }
+
+  [
+    ["pub fn " <> func.name <> "("],
+    params,
+    [") {"],
+    [body],
+    ["}"],
+  ]
+  |> list.flatten
+  |> string.join("\n")
 }
 
 pub fn parse_func_srcs(src: String) -> List(Func) {

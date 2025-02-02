@@ -1,4 +1,5 @@
 import gleam/io
+import gleam/list
 import gleam/string
 import gleeunit
 import gleeunit/should
@@ -130,8 +131,7 @@ pub fn insert_test() {
   ]))
 }
 
-
-pub fn squirrel_src_parse_test() {
+pub fn squirrel_parse_and_labelled_func_gen_test() {
   let src = "
 import gleam/dynamic/decode
 import gleam/list
@@ -232,7 +232,7 @@ pub fn get_user_token(db, arg_1) {
 "
   |> string.trim
 
-  let assert [func1, func2] = sl.parse_func_srcs(src)
+  let assert [func1, func2] as funcs = sl.parse_func_srcs(src)
 
   func1.name |> should.equal("get_user_token")
   func1.params |> should.equal(["db", "arg_1"])
@@ -247,4 +247,34 @@ pub fn get_user_token(db, arg_1) {
     sl.Arg(num: 2, label: "email"),
     sl.Arg(num: 3, label: "org_id"),
   ])
+
+  let assert [_, p2] =
+    funcs
+    |> list.map(sl.labelled_params_for)
+
+  should.equal(p2, [
+    sl.LabelledParam(name: "db", label: "db"),
+    sl.LabelledParam(name: "arg_1", label: "name"),
+    sl.LabelledParam(name: "arg_2", label: "email"),
+    sl.LabelledParam(name: "arg_3", label: "org_id"),
+  ])
+
+  let expected_wrapper_func_src = "
+pub fn insert_user(
+  db db,
+  name arg_1,
+  email arg_2,
+  org_id arg_3,
+) {
+  sql.insert_user(db, arg_1, arg_2, arg_3)
+}
+"
+  |> string.trim
+
+  sl.wrapper_func_src(func2, p2)
+  |> should.equal(expected_wrapper_func_src)
+
+  io.println("")
+  io.println(sl.squirrel_wrapper_funcs_with_labelled_params(src))
+  False |> should.equal(True)
 }
