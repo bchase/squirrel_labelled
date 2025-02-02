@@ -14,7 +14,7 @@ pub type Arg {
   )
 }
 
-pub fn parse(sql: String) -> Result(List(Arg), String) {
+pub fn parse_args(sql: String) -> Result(List(Arg), String) {
   case detect_query_type(sql) {
     Select | Update | Delete -> parse_select_update_delete_syntax(sql)
     Insert -> parse_insert_syntax(sql)
@@ -163,8 +163,7 @@ fn parse_arg(arg_num: Int, sql: String) -> Result(Arg, String) {
 pub fn foo() -> Nil {
   let assert Ok(src) = simplifile.read("../kohort/src/kohort/sql.gleam")
 
-  let func_srcs = parse_func_srcs(src)
-  // |> io.debug
+  let _func_srcs = parse_func_srcs(src)
 
   Nil
 }
@@ -173,12 +172,13 @@ pub type Func {
   Func(
     name: String,
     src: String,
-    args: List(String),
     query: String,
+    params: List(String),
+    sql_args: List(Arg),
   )
 }
 
-fn parse_func_srcs(src: String) -> List(Func) {
+pub fn parse_func_srcs(src: String) -> List(Func) {
   let assert Ok(func_name_re) = regexp.from_string("pub\\s+fn\\s+(\\w+)[(]([^)]+)[)]")
 
   {
@@ -210,15 +210,16 @@ fn parse_func_srcs(src: String) -> List(Func) {
   |> list.filter(fn(str) { str != "" })
   |> list.map(fn(src) {
     case regexp.scan(func_name_re, string.replace(src, each: "\n", with: " ")) {
-      [Match(_, [Some(name), Some(args)])] -> {
-        let args =
-          args
+      [Match(_, [Some(name), Some(params)])] -> {
+        let params =
+          params
           |> string.split(",")
           |> list.map(string.trim)
 
         let query = parse_query(src)
+        let assert Ok(sql_args) = parse_args(query)
 
-        Func(name:, src:, args:, query:)
+        Func(name:, src:, query:, params:, sql_args:)
       }
 
       _ -> {
@@ -227,6 +228,7 @@ fn parse_func_srcs(src: String) -> List(Func) {
       }
     }
   })
+  |> list.sort(fn(a, b) { string.compare(a.name, b.name) })
 }
 
 fn parse_query(src: String) -> String {
@@ -242,16 +244,21 @@ fn parse_query(src: String) -> String {
           [Match(_, [_, sql])] -> #(sql, rest)
           [Match(_, [])] -> #(None, rest)
 
+          [] -> {
+            io.debug(src)
+            panic as "missing lines after `let query` match"
+          }
+
           _ -> {
             io.debug(src)
-            panic
+            panic as "match of `let query` has an unexpected pattern of `submatches`"
           }
         }
       }
 
       _ -> {
         io.debug(src)
-        panic
+        panic as "failed to match `let query`"
       }
     }
     |> fn(x) {

@@ -23,7 +23,7 @@ pub fn delete_test() {
 "
   |> string.trim
 
-  let args = sl.parse(sql)
+  let args = sl.parse_args(sql)
 
   args
   |> should.equal(Ok([
@@ -48,7 +48,7 @@ pub fn update_test() {
 "
   |> string.trim
 
-  let args = sl.parse(sql)
+  let args = sl.parse_args(sql)
 
   args
   |> should.equal(Ok([
@@ -73,7 +73,7 @@ pub fn select_test() {
 "
   |> string.trim
 
-  let args = sl.parse(sql)
+  let args = sl.parse_args(sql)
 
   args
   |> should.equal(Ok([
@@ -92,7 +92,7 @@ pub fn select_no_args_test() {
 "
   |> string.trim
 
-  let args = sl.parse(sql)
+  let args = sl.parse_args(sql)
 
   args
   |> should.equal(Ok([]))
@@ -120,7 +120,7 @@ pub fn insert_test() {
       baz
 "
 
-  let args = sl.parse(sql)
+  let args = sl.parse_args(sql)
 
   args
   |> should.equal(Ok([
@@ -232,5 +232,19 @@ pub fn get_user_token(db, arg_1) {
 "
   |> string.trim
 
-  True |> should.equal(True)
+  let assert [func1, func2] = sl.parse_func_srcs(src)
+
+  func1.name |> should.equal("get_user_token")
+  func1.params |> should.equal(["db", "arg_1"])
+  func1.sql_args |> should.equal([
+    sl.Arg(num: 1, label: "hashed_token"),
+  ])
+
+  func2.name |> should.equal("insert_user")
+  func2.params |> should.equal(["db", "arg_1", "arg_2", "arg_3"])
+  func2.sql_args |> should.equal([
+    sl.Arg(num: 1, label: "name"),
+    sl.Arg(num: 2, label: "email"),
+    sl.Arg(num: 3, label: "org_id"),
+  ])
 }
