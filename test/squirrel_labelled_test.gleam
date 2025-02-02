@@ -92,28 +92,34 @@ pub fn select_no_args_test() {
   |> should.equal(Ok([]))
 }
 
-// pub fn insert_test() {
-//   let sql = "
-//     INSERT INTO
-//       users
-//       (
-//         name,
-//         email,
-//         org_id
-//       )
-//     VALUES
-//       (
-//         $1,
-//         $2,
-//         $3
-//       )
-//     RETURNING
-//       id,
-//       name,
-//       email,
-//       org_id
-// "
+pub fn insert_test() {
+  let sql = "
+    INSERT INTO
+      widgets
+      (
+        foo,
+        bar,
+        baz
+      )
+    VALUES
+      (
+        $1,
+        $3,
+        $2
+      )
+    RETURNING
+      id,
+      foo,
+      bar,
+      baz
+"
 
-//   1
-//   |> should.equal(1)
-// }
+  let args = sl.parse(sql)
+
+  args
+  |> should.equal(Ok([
+    sl.Arg(num: 1, label: "foo"),
+    sl.Arg(num: 2, label: "baz"),
+    sl.Arg(num: 3, label: "bar"),
+  ]))
+}
