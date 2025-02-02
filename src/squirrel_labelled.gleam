@@ -1,9 +1,11 @@
-import gleam/option.{Some}
+import gleam/io
+import gleam/option.{Some, None}
 import gleam/string
 import gleam/int
 import gleam/result
 import gleam/list
 import gleam/regexp.{type Regexp, type Match, Match}
+import simplifile
 
 pub type Arg {
   Arg(
@@ -155,5 +157,126 @@ fn parse_arg(arg_num: Int, sql: String) -> Result(Arg, String) {
     }
     [] -> Error("No label match")
     _ ->  Error("Multiple label matches")
+  }
+}
+
+pub fn foo() -> Nil {
+  let assert Ok(src) = simplifile.read("../kohort/src/kohort/sql.gleam")
+
+  let func_srcs = parse_func_srcs(src)
+  // |> io.debug
+
+  Nil
+}
+
+pub type Func {
+  Func(
+    name: String,
+    src: String,
+    args: List(String),
+    query: String,
+  )
+}
+
+fn parse_func_srcs(src: String) -> List(Func) {
+  let assert Ok(func_name_re) = regexp.from_string("pub\\s+fn\\s+(\\w+)[(]([^)]+)[)]")
+
+  {
+    let init_acc = #([], [])
+    use acc, line <- list.fold(string.split(src, "\n"), init_acc)
+    let #(funcs, curr) = acc
+
+    case curr, line {
+      [], "pub fn " <> _ -> #(funcs, [line])
+
+      [], _ -> acc
+
+      lines, "}" -> {
+        let func =
+          ["}", ..lines]
+          |> list.reverse
+          |> string.join("\n")
+
+        #([func, ..funcs], [])
+      }
+
+      lines, _ -> #(funcs, [line, ..lines])
+    }
+  }
+  |> fn(x) {
+    let #(func_srcs, last_func_src_lines) = x
+    [string.join(last_func_src_lines, "\n"), ..func_srcs]
+  }
+  |> list.filter(fn(str) { str != "" })
+  |> list.map(fn(src) {
+    case regexp.scan(func_name_re, string.replace(src, each: "\n", with: " ")) {
+      [Match(_, [Some(name), Some(args)])] -> {
+        let args =
+          args
+          |> string.split(",")
+          |> list.map(string.trim)
+
+        let query = parse_query(src)
+
+        Func(name:, src:, args:, query:)
+      }
+
+      _ -> {
+        io.debug(src)
+        panic as "Failed to parse func name from above source"
+      }
+    }
+  })
+}
+
+fn parse_query(src: String) -> String {
+  let assert Ok(query_start_re) = regexp.from_string("^\\s*let\\s*query\\s*=\\s*(\"(.*))?$")
+
+  src
+  |> string.split("\n")
+  |> list.drop_while(fn(str) { !regexp.check(query_start_re, str) })
+  |> fn(from_query_start) {
+    case from_query_start {
+      [let_query_str, ..rest] -> {
+        case regexp.scan(query_start_re, let_query_str) {
+          [Match(_, [_, sql])] -> #(sql, rest)
+          [Match(_, [])] -> #(None, rest)
+
+          _ -> {
+            io.debug(src)
+            panic
+          }
+        }
+      }
+
+      _ -> {
+        io.debug(src)
+        panic
+      }
+    }
+    |> fn(x) {
+      let assert Ok(lone_double_quote_re) = regexp.from_string("^\\s*\"\\s*$")
+
+      let #(sql, rest) = x
+
+      let line = option.unwrap(sql, "")
+
+      let first_line_is_lone_double_quotes =
+        rest
+        |> list.first
+        |> result.map(regexp.check(lone_double_quote_re, _))
+        |> result.unwrap(False)
+
+      let lines =
+        case first_line_is_lone_double_quotes {
+          False -> rest
+          True -> list.drop(rest, 1)
+        }
+        |> list.take_while(fn(str) { !regexp.check(lone_double_quote_re, str)})
+
+      [line, ..lines]
+      |> string.join("\n")
+      |> string.trim
+    }
   }
 }
