@@ -114,14 +114,54 @@ pub fn parse_insert_syntax(sql: String) -> Result(List(Arg), String) {
     |> regexp.from_string
 
   sql
-  |> string.replace(each: "\n", with: " ")
+  |> string.replace(each: "\n", with: "\t")
   |> regexp.scan(insert_re, _)
   |> fn(m) {
     case m {
       [Match(_, [Some(cols), Some(vals)])] -> {
+    // let assert Ok(comma_and_maybe_magic_comment_re) =
+    //   "[,]\\s"
+    //   |> regexp.from_string
+          // |> regex.split(comma_and_maybe_magic_comment_re)
         let cols =
           cols
-          |> string.split(",")
+          // |> string.split(",")
+          // |> list.map(string.trim)
+          |> string.split("\t")
+          |> list.filter(fn(str) {
+            // TODO mv re
+            let assert Ok(empty_or_whitespace_re) = regexp.from_string("^\\s*$")
+            !regexp.check(empty_or_whitespace_re, str)
+          })
+          |> list.map(fn(str) {
+            // io.debug(str)
+            // TODO mv re
+            let assert Ok(re) = regexp.from_string("^\\s*(\\w+)[,]?\\s*([-]{2}([$])?\\s*(.+))?$")
+            //                                           1             2      3         4
+            // case io.debug(regexp.scan(re, str)) {
+            case regexp.scan(re, str) {
+              [Match(_, [Some(val), _, Some(_), comment])] ->  {
+                io.debug(comment)
+                // io.debug(comment)
+                // io.debug(comment)
+                // io.debug(comment)
+                // io.debug(comment)
+                // io.debug(comment)
+                // io.debug(comment)
+                // io.debug(comment)
+                // io.debug(comment)
+                // io.debug(comment)
+                val
+                }
+              [Match(_, [Some(val), ..])] ->{
+            // io.debug(str)
+            // io.debug(str)
+            // io.debug(str)
+              val
+                }
+              _ -> panic as "could not find `INSERT` value"
+            }
+          })
           |> list.map(string.trim)
 
         let vals =
