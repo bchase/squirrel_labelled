@@ -104,7 +104,7 @@ pub fn insert_test() {
     INSERT INTO
       widgets
       (
-        foo,
+        foo, -- foo
         bar,
         baz
       )
@@ -128,6 +128,38 @@ pub fn insert_test() {
     sl.Arg(num: 1, label: "foo"),
     sl.Arg(num: 2, label: "baz"),
     sl.Arg(num: 3, label: "bar"),
+  ]))
+}
+
+pub fn insert_label_override_test() {
+  let sql = "
+    INSERT INTO
+      widgets
+      (
+        foo,
+        bar, --$ squirrel label foobar
+        baz  --$ squirrel label hoge
+      )
+    VALUES
+      (
+        $1,
+        $3,
+        $2
+      )
+    RETURNING
+      id,
+      foo,
+      bar,
+      baz
+"
+
+  let args = sl.parse_args(sql)
+
+  args
+  |> should.equal(Ok([
+    sl.Arg(num: 1, label: "foo"),
+    sl.Arg(num: 2, label: "hoge"),
+    sl.Arg(num: 3, label: "foobar"),
   ]))
 }
 
