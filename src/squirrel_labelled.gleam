@@ -68,6 +68,7 @@ pub fn parse_args(sql: String) -> Result(List(Arg), String) {
     Insert -> parse_insert_syntax(sql)
     Unknown | NoQuery -> Error("Query type could not be detected")
   }
+  |> result.map(list.unique)
 }
 
 type QueryType {
@@ -199,7 +200,7 @@ fn parse_arg(arg_num: Int, sql: String) -> Result(Arg, String) {
     |> regexp.compile(regexp.Options(case_insensitive: False, multi_line: True))
 
   case regexp.scan(label_re, sql) {
-    [Match(submatches: [Some(label), ..], ..)] -> {
+    [Match(submatches: [Some(label), ..], ..), ..] -> {
       let label = string.replace(label, each: ".", with: "_")
       Ok(Arg(num: arg_num, label: label))
     }
