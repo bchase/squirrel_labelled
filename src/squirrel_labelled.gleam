@@ -128,18 +128,18 @@ pub fn parse_insert_syntax(sql: String) -> Result(List(Arg), String) {
           vals
           |> string.split(",")
           |> list.map(string.trim)
+          |> list.map(single_match_first_group(arg_num_re, _))
+          |> result.values
+          |> list.map(int.parse)
 
         case list.length(cols) == list.length(vals) {
           False -> Error("Length mismatch for columns and values in `INSERT` statement")
           True ->
             list.zip(cols, vals)
             |> list.map(fn(x) {
-              let #(col, val) = x
+              let #(col, arg_num) = x
 
               let label = single_match_first_group(label_re, col)
-              let arg_num =
-                single_match_first_group(arg_num_re, val)
-                |> result.then(int.parse)
 
               case label, arg_num {
                 Ok(label), Ok(num) -> Ok(Arg(num:, label:))
@@ -318,7 +318,16 @@ pub fn parse_func_srcs(src: String) -> List(Func) {
           |> list.map(string.trim)
 
         let query = parse_query(src)
-        let assert Ok(sql_args) = parse_args(query)
+        let sql_args =
+          case parse_args(query) {
+            Error(err) -> {
+              io.debug(err)
+              io.debug(src)
+              panic as "`parse_args` failed"
+            }
+
+            Ok(x) -> x
+          }
 
         Func(name:, src:, query:, params:, sql_args:)
       }
