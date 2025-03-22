@@ -196,7 +196,8 @@ fn parse_sql_numbered_args(sql: String) -> List(Int) {
 
 fn parse_arg(arg_num: Int, sql: String) -> Result(Arg, String) {
   let assert Ok(label_re) =
-    { "((\\w+[.])?\\w+)\\s+[=]\\s+[$]" <> int.to_string(arg_num) }
+    // TODO https://www.postgresql.org/docs/current/functions-comparison.html
+    { "((\\w+[.])?\\w+)\\s+(=|>=|<=|>|<|IS|IS NOT)\\s+[$]" <> int.to_string(arg_num) }
     |> regexp.compile(regexp.Options(case_insensitive: False, multi_line: True))
 
   case regexp.scan(label_re, sql) {
