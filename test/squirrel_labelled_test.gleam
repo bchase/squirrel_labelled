@@ -29,8 +29,8 @@ pub fn delete_test() {
 
   args
   |> should.equal(Ok([
-    sl.Arg(num: 1, label: "org_id", comment: None),
-    sl.Arg(num: 2, label: "id", comment: None),
+    sl.Arg(num: 1, label: "org_id", opts: []),
+    sl.Arg(num: 2, label: "id", opts: []),
   ]))
 }
 
@@ -54,10 +54,10 @@ pub fn update_test() {
 
   args
   |> should.equal(Ok([
-    sl.Arg(num: 1, label: "id", comment: None),
-    sl.Arg(num: 2, label: "user_id", comment: None),
-    sl.Arg(num: 3, label: "foo", comment: None),
-    sl.Arg(num: 4, label: "bar", comment: None),
+    sl.Arg(num: 1, label: "id", opts: []),
+    sl.Arg(num: 2, label: "user_id", opts: []),
+    sl.Arg(num: 3, label: "foo", opts: []),
+    sl.Arg(num: 4, label: "bar", opts: []),
   ]))
 }
 
@@ -79,7 +79,7 @@ pub fn select_test() {
 
   args
   |> should.equal(Ok([
-    sl.Arg(num: 1, label: "w_org_id", comment: None),
+    sl.Arg(num: 1, label: "w_org_id", opts: []),
   ]))
 }
 
@@ -126,9 +126,9 @@ pub fn insert_test() {
 
   args
   |> should.equal(Ok([
-    sl.Arg(num: 1, label: "foo", comment: None),
-    sl.Arg(num: 2, label: "baz", comment: None),
-    sl.Arg(num: 3, label: "bar", comment: None),
+    sl.Arg(num: 1, label: "foo", opts: []),
+    sl.Arg(num: 2, label: "baz", opts: []),
+    sl.Arg(num: 3, label: "bar", opts: []),
   ]))
 }
 
@@ -158,9 +158,9 @@ pub fn insert_label_override_test() {
 
   args
   |> should.equal(Ok([
-    sl.Arg(num: 1, label: "foo", comment: None),
-    sl.Arg(num: 2, label: "baz", comment: Some("squirrel label hoge")),
-    sl.Arg(num: 3, label: "bar", comment: Some("squirrel label foobar")),
+    sl.Arg(num: 1, label: "foo", opts: []),
+    sl.Arg(num: 2, label: "baz", opts: [#("label", "hoge")]),
+    sl.Arg(num: 3, label: "bar", opts: [#("label", "foobar")]),
   ]))
 }
 
@@ -202,7 +202,7 @@ pub fn insert_user(db, arg_1, arg_2, arg_3) {
       users
       (
         name,
-        email, --$ squirrel label email_address
+        email, --$ squirrel label skip, squirrel label email_address
         org_id
       )
     VALUES
@@ -270,15 +270,15 @@ pub fn get_user_token(db, arg_1) {
   func1.name |> should.equal("get_user_token")
   func1.params |> should.equal(["db", "arg_1"])
   func1.sql_args |> should.equal([
-    sl.Arg(num: 1, label: "hashed_token", comment: None),
+    sl.Arg(num: 1, label: "hashed_token", opts: []),
   ])
 
   func2.name |> should.equal("insert_user")
   func2.params |> should.equal(["db", "arg_1", "arg_2", "arg_3"])
   func2.sql_args |> should.equal([
-    sl.Arg(num: 1, label: "name", comment: None),
-    sl.Arg(num: 2, label: "email", comment: Some("squirrel label email_address")),
-    sl.Arg(num: 3, label: "org_id", comment: None),
+    sl.Arg(num: 1, label: "name", opts: []),
+    sl.Arg(num: 2, label: "email", opts: [#("label", "skip"), #("label", "email_address")]),
+    sl.Arg(num: 3, label: "org_id", opts: []),
   ])
 
   let assert [_, p2] =

@@ -12,8 +12,29 @@ pub type Arg {
   Arg(
     num: Int,
     label: String,
-    comment: Option(String),
+    opts: List(#(String, String)),
   )
+}
+
+fn parse_opts(magic_comment: Option(String)) -> List(#(String, String)) {
+  let assert Ok(override_re) =
+    "^squirrel (\\w+) (\\w+)$"
+    |> regexp.from_string
+
+  magic_comment
+  |> option.map(fn(magic_comment) {
+    magic_comment
+    |> string.split(",")
+    |> list.map(string.trim)
+    |> list.map(fn(str) {
+      case regexp.scan(override_re, str) {
+        [Match(_, [Some(key), Some(value)])] -> Some(#(key, value))
+        _ -> None
+      }
+    })
+    |> option.values
+  })
+  |> option.unwrap([])
 }
 
 pub fn main() {
@@ -168,9 +189,10 @@ pub fn parse_insert_syntax(sql: String) -> Result(List(Arg), String) {
 
               let #(col, comment) = col
               let label = single_match_first_group(label_re, col)
+              let opts = parse_opts(comment)
 
               case label, arg_num {
-                Ok(label), Ok(num) -> Ok(Arg(num:, label:, comment:))
+                Ok(label), Ok(num) -> Ok(Arg(num:, label:, opts:))
                 _, _ -> Error("Unable to match label or arg num")
               }
             })
@@ -232,11 +254,12 @@ fn parse_arg(arg_num: Int, sql: String) -> Result(Arg, String) {
     [Match(submatches: [Some(label), _, _, _, comment], ..), ..] -> {
       let label = string.replace(label, each: ".", with: "_")
       let comment = comment |> option.map(string.trim)
-      Ok(Arg(num: arg_num, label: label, comment: comment))
+      let opts = parse_opts(comment)
+      Ok(Arg(num: arg_num, label: label, opts: opts))
     }
     [Match(submatches: [Some(label), ..], ..), ..] -> {
       let label = string.replace(label, each: ".", with: "_")
-      Ok(Arg(num: arg_num, label: label, comment: None))
+      Ok(Arg(num: arg_num, label: label, opts: []))
     }
     [] -> Error("No label match")
     _ ->  Error("Multiple label matches")
@@ -290,27 +313,26 @@ pub fn labelled_params_for(func: Func) -> List(LabelledParam) {
   }
 }
 
-fn arg_label(arg: Arg) -> String {
-  case arg.comment {
-    None -> arg.label
-    Some(comment) -> {
-      let assert Ok(override_re) =
-        "^squirrel label (\\w+)$"
-        |> regexp.from_string
-
-      let segments = string.split(comment, ",")
-
-      segments
-      |> list.map(fn(str) {
-        case regexp.scan(override_re, str) {
-          [Match(_, [Some(override)])] -> Some(override)
-          _ -> None
-        }
-      })
-      |> option.values
-      |> list.last
-      |> result.unwrap(arg.label)
+fn get_opt(
+  arg: Arg,
+  key: String,
+) -> Option(String) {
+  arg.opts
+  |> list.filter_map(fn(x) {
+    let #(k, val) = x
+    case k == key {
+      True -> Ok(val)
+      False -> Error(Nil)
     }
+  })
+  |> list.last
+  |> option.from_result
+}
+
+fn arg_label(arg: Arg) -> String {
+  case get_opt(arg, "label") {
+    None -> arg.label
+    Some(override) -> override
   }
 }
 
