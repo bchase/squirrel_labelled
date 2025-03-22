@@ -1,5 +1,5 @@
 import gleam/io
-import gleam/option.{Some, None}
+import gleam/option.{type Option, Some, None}
 import gleam/string
 import gleam/int
 import gleam/result
@@ -12,6 +12,7 @@ pub type Arg {
   Arg(
     num: Int,
     label: String,
+    comment: Option(String),
   )
 }
 
@@ -119,14 +120,8 @@ pub fn parse_insert_syntax(sql: String) -> Result(List(Arg), String) {
   |> fn(m) {
     case m {
       [Match(_, [Some(cols), Some(vals)])] -> {
-    // let assert Ok(comma_and_maybe_magic_comment_re) =
-    //   "[,]\\s"
-    //   |> regexp.from_string
-          // |> regex.split(comma_and_maybe_magic_comment_re)
         let cols =
           cols
-          // |> string.split(",")
-          // |> list.map(string.trim)
           |> string.split("\t")
           |> list.filter(fn(str) {
             // TODO mv re
@@ -134,35 +129,27 @@ pub fn parse_insert_syntax(sql: String) -> Result(List(Arg), String) {
             !regexp.check(empty_or_whitespace_re, str)
           })
           |> list.map(fn(str) {
-            // io.debug(str)
             // TODO mv re
             let assert Ok(re) = regexp.from_string("^\\s*(\\w+)[,]?\\s*([-]{2}([$])?\\s*(.+))?$")
             //                                           1             2      3         4
-            // case io.debug(regexp.scan(re, str)) {
             case regexp.scan(re, str) {
               [Match(_, [Some(val), _, Some(_), comment])] ->  {
-                io.debug(comment)
-                // io.debug(comment)
-                // io.debug(comment)
-                // io.debug(comment)
-                // io.debug(comment)
-                // io.debug(comment)
-                // io.debug(comment)
-                // io.debug(comment)
-                // io.debug(comment)
-                // io.debug(comment)
-                val
-                }
+                #(
+                  val |> string.trim,
+                  comment |> option.map(string.trim),
+                )
+              }
+
               [Match(_, [Some(val), ..])] ->{
-            // io.debug(str)
-            // io.debug(str)
-            // io.debug(str)
-              val
-                }
+                #(
+                  val |> string.trim,
+                  None,
+                )
+              }
+
               _ -> panic as "could not find `INSERT` value"
             }
           })
-          |> list.map(string.trim)
 
         let vals =
           vals
@@ -179,10 +166,11 @@ pub fn parse_insert_syntax(sql: String) -> Result(List(Arg), String) {
             |> list.map(fn(x) {
               let #(col, arg_num) = x
 
+              let #(col, comment) = col
               let label = single_match_first_group(label_re, col)
 
               case label, arg_num {
-                Ok(label), Ok(num) -> Ok(Arg(num:, label:))
+                Ok(label), Ok(num) -> Ok(Arg(num:, label:, comment:))
                 _, _ -> Error("Unable to match label or arg num")
               }
             })
@@ -237,13 +225,18 @@ fn parse_sql_numbered_args(sql: String) -> List(Int) {
 fn parse_arg(arg_num: Int, sql: String) -> Result(Arg, String) {
   let assert Ok(label_re) =
     // TODO https://www.postgresql.org/docs/current/functions-comparison.html
-    { "((\\w+[.])?\\w+)\\s+(=|>=|<=|>|<|IS|IS NOT)\\s+[$]" <> int.to_string(arg_num) }
+    { "((\\w+[.])?\\w+)\\s+(=|>=|<=|>|<|IS|IS NOT)\\s+[$]" <> int.to_string(arg_num) <> "\\s*([-][-][$]\\s*([^\\n]+))?" }
     |> regexp.compile(regexp.Options(case_insensitive: False, multi_line: True))
 
   case regexp.scan(label_re, sql) {
+    [Match(submatches: [Some(label), _, _, _, comment], ..), ..] -> {
+      let label = string.replace(label, each: ".", with: "_")
+      let comment = comment |> option.map(string.trim)
+      Ok(Arg(num: arg_num, label: label, comment: comment))
+    }
     [Match(submatches: [Some(label), ..], ..), ..] -> {
       let label = string.replace(label, each: ".", with: "_")
-      Ok(Arg(num: arg_num, label: label))
+      Ok(Arg(num: arg_num, label: label, comment: None))
     }
     [] -> Error("No label match")
     _ ->  Error("Multiple label matches")
@@ -285,13 +278,39 @@ pub type LabelledParam {
 pub fn labelled_params_for(func: Func) -> List(LabelledParam) {
   func.sql_args
   |> list.map(fn(arg) {
+    let label = arg_label(arg)
+
     LabelledParam(
       name: "arg_" <> int.to_string(arg.num),
-      label: arg.label,
+      label:,
     )
   })
   |> fn(params) {
     [LabelledParam(name: "db", label: "db"), ..params]
+  }
+}
+
+fn arg_label(arg: Arg) -> String {
+  case arg.comment {
+    None -> arg.label
+    Some(comment) -> {
+      let assert Ok(override_re) =
+        "^squirrel label (\\w+)$"
+        |> regexp.from_string
+
+      let segments = string.split(comment, ",")
+
+      segments
+      |> list.map(fn(str) {
+        case regexp.scan(override_re, str) {
+          [Match(_, [Some(override)])] -> Some(override)
+          _ -> None
+        }
+      })
+      |> option.values
+      |> list.last
+      |> result.unwrap(arg.label)
+    }
   }
 }
 
