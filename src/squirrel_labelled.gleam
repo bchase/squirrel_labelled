@@ -12,13 +12,19 @@ pub type Arg {
   Arg(
     num: Int,
     label: String,
-    opts: List(#(String, String)),
+    opts: List(Opt),
   )
 }
 
-fn parse_opts(magic_comment: Option(String)) -> List(#(String, String)) {
-  let assert Ok(override_re) =
-    "^squirrel (\\w+) (\\w+)$"
+pub type Opt = List(String)
+
+fn parse_opts(magic_comment: Option(String)) -> List(Opt) {
+  let assert Ok(ws_re) =
+    "\\s+"
+    |> regexp.from_string
+
+  let assert Ok(opt_raw_re) =
+    "^squirrel (.+)$"
     |> regexp.from_string
 
   magic_comment
@@ -27,9 +33,14 @@ fn parse_opts(magic_comment: Option(String)) -> List(#(String, String)) {
     |> string.split(",")
     |> list.map(string.trim)
     |> list.map(fn(str) {
-      case regexp.scan(override_re, str) {
-        [Match(_, [Some(key), Some(value)])] -> Some(#(key, value))
-        _ -> None
+      case regexp.scan(opt_raw_re, str) {
+        [Match(_, [Some(opt_raw)])] ->
+          opt_raw
+          |> regexp.split(ws_re, _)
+          |> Some
+
+        _ ->
+          None
       }
     })
     |> option.values
@@ -313,16 +324,14 @@ pub fn labelled_params_for(func: Func) -> List(LabelledParam) {
   }
 }
 
-fn get_opt(
+fn get_label_override(
   arg: Arg,
-  key: String,
 ) -> Option(String) {
   arg.opts
-  |> list.filter_map(fn(x) {
-    let #(k, val) = x
-    case k == key {
-      True -> Ok(val)
-      False -> Error(Nil)
+  |> list.filter_map(fn(strs) {
+    case strs {
+      [key, val] if key == "label" -> Ok(val)
+      _ -> Error(Nil)
     }
   })
   |> list.last
@@ -330,7 +339,7 @@ fn get_opt(
 }
 
 fn arg_label(arg: Arg) -> String {
-  case get_opt(arg, "label") {
+  case get_label_override(arg) {
     None -> arg.label
     Some(override) -> override
   }

@@ -159,8 +159,8 @@ pub fn insert_label_override_test() {
   args
   |> should.equal(Ok([
     sl.Arg(num: 1, label: "foo", opts: []),
-    sl.Arg(num: 2, label: "baz", opts: [#("label", "hoge")]),
-    sl.Arg(num: 3, label: "bar", opts: [#("label", "foobar")]),
+    sl.Arg(num: 2, label: "baz", opts: [["label", "hoge"]]),
+    sl.Arg(num: 3, label: "bar", opts: [["label", "foobar"]]),
   ]))
 }
 
@@ -277,7 +277,7 @@ pub fn get_user_token(db, arg_1) {
   func2.params |> should.equal(["db", "arg_1", "arg_2", "arg_3"])
   func2.sql_args |> should.equal([
     sl.Arg(num: 1, label: "name", opts: []),
-    sl.Arg(num: 2, label: "email", opts: [#("label", "skip"), #("label", "email_address")]),
+    sl.Arg(num: 2, label: "email", opts: [["label", "skip"], ["label", "email_address"]]),
     sl.Arg(num: 3, label: "org_id", opts: []),
   ])
 
