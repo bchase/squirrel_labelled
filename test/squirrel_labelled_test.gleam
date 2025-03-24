@@ -12,7 +12,7 @@ pub fn main() {
 }
 
 pub fn read_test() {
-  sl.foo()
+  sl.parse_kohort()
 
   True |> should.equal(True)
 }
@@ -198,7 +198,7 @@ pub fn insert_user(db, arg_1, arg_2, arg_3) {
     decode.success(InsertUserRow(id:, name:, email:, org_id:))
   }
 
-  let query = \"
+  \"
     INSERT INTO
       users
       (
@@ -218,8 +218,7 @@ pub fn insert_user(db, arg_1, arg_2, arg_3) {
       email,
       org_id
 \"
-
-  pog.query(query)
+  |> pog.query
   |> pog.parameter(pog.text(arg_1))
   |> pog.parameter(pog.text(arg_2))
   |> pog.parameter(pog.text(uuid.to_string(arg_3)))
@@ -249,7 +248,7 @@ pub fn get_user_token(db, arg_1) {
     decode.success(GetUserTokenRow(user_id:))
   }
 
-  let query = \"
+  \"
     SELECT
       user_id
     FROM
@@ -257,8 +256,7 @@ pub fn get_user_token(db, arg_1) {
     WHERE hashed_token = $1
     LIMIT 1
 \"
-
-  pog.query(query)
+  |> pog.query(query)
   |> pog.parameter(pog.text(arg_1))
   |> pog.returning(decoder)
   |> pog.execute(db)
@@ -309,7 +307,6 @@ pub fn insert_user(
   |> should.equal(expected_wrapper_func_src)
 }
 
-// todo nullable
 pub fn squirrel_copy_and_nullify_test() {
   let src = "
 pub fn insert_user(db, arg_1, arg_2, arg_3) {
@@ -321,7 +318,7 @@ pub fn insert_user(db, arg_1, arg_2, arg_3) {
     decode.success(InsertUserRow(id:, name:, email:, org_id:))
   }
 
-  let query = \"
+  \"
     INSERT INTO
       users
       (
@@ -341,8 +338,7 @@ pub fn insert_user(db, arg_1, arg_2, arg_3) {
       email,
       org_id
 \"
-
-  pog.query(query)
+  |> pog.query
   |> pog.parameter(pog.text(arg_1))
   |> pog.parameter(pog.text(arg_2))
   |> pog.parameter(pog.text(uuid.to_string(arg_3)))
@@ -363,7 +359,7 @@ pub fn insert_user(db, name arg_1, email_address arg_2, org_id arg_3) {
     decode.success(sql.InsertUserRow(id:, name:, email:, org_id:))
   }
 
-  let query = \"
+  \"
     INSERT INTO
       users
       (
@@ -383,8 +379,7 @@ pub fn insert_user(db, name arg_1, email_address arg_2, org_id arg_3) {
       email,
       org_id
 \"
-
-  pog.query(query)
+  |> pog.query
   |> pog.parameter(pog.nullable(pog.text, arg_1))
   |> pog.parameter(pog.text(arg_2))
   |> pog.parameter(pog.nullable(pog.text, uuid.to_string(arg_3)))

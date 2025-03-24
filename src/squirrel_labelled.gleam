@@ -140,7 +140,10 @@ pub fn parse_args(sql: String) -> Result(List(Arg), String) {
   case detect_query_type(sql) {
     Select | Update | Delete -> parse_select_update_delete_syntax(sql)
     Insert -> parse_insert_syntax(sql)
-    Unknown | NoQuery -> Error("Query type could not be detected")
+    Unknown | NoQuery -> {
+      io.debug(sql)
+      Error("Query type could not be detected")
+    }
   }
   |> result.map(list.unique)
 }
@@ -318,7 +321,7 @@ fn parse_arg(arg_num: Int, sql: String) -> Result(Arg, String) {
   }
 }
 
-pub fn foo() -> Nil {
+pub fn parse_kohort() -> Nil {
   let assert Ok(src) = simplifile.read("../kohort/src/kohort/sql.gleam")
 
   let _func_srcs = parse_func_srcs(src)
@@ -493,7 +496,10 @@ pub fn parse_func_srcs(src: String) -> List(Func) {
 }
 
 fn parse_query(src: String) -> String {
-  let assert Ok(query_start_re) = regexp.from_string("^\\s*let\\s*query\\s*=\\s*(\"(.*))?$")
+  // let assert Ok(query_start_re) = regexp.from_string("^\\s*let\\s*query\\s*=\\s*(\"(.*))?$")
+  let assert Ok(query_start_re) =
+    "^\\s*[\"]\\s*$"
+    |> regexp.from_string
 
   src
   |> string.split("\n")
