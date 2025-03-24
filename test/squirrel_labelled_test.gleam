@@ -325,9 +325,9 @@ pub fn insert_user(db, arg_1, arg_2, arg_3) {
     INSERT INTO
       users
       (
-        name,
+        name,  --$ squirrel nullable
         email, --$ squirrel label skip, squirrel label email_address
-        org_id
+        org_id --$ squirrel nullable
       )
     VALUES
       (
@@ -351,6 +351,8 @@ pub fn insert_user(db, arg_1, arg_2, arg_3) {
 }
 "
 
+  let assert [func] = sl.parse_func_srcs(src)
+
   let expected = "
 pub fn insert_user(db, name arg_1, email_address arg_2, org_id arg_3) {
   let decoder = {
@@ -365,9 +367,9 @@ pub fn insert_user(db, name arg_1, email_address arg_2, org_id arg_3) {
     INSERT INTO
       users
       (
-        name,
+        name,  --$ squirrel nullable
         email, --$ squirrel label skip, squirrel label email_address
-        org_id
+        org_id --$ squirrel nullable
       )
     VALUES
       (
@@ -385,7 +387,7 @@ pub fn insert_user(db, name arg_1, email_address arg_2, org_id arg_3) {
   pog.query(query)
   |> pog.parameter(pog.nullable(pog.text, arg_1))
   |> pog.parameter(pog.text(arg_2))
-  |> pog.parameter(pog.text(uuid.to_string(arg_3)))
+  |> pog.parameter(pog.nullable(pog.text, uuid.to_string(arg_3)))
   |> pog.returning(decoder)
   |> pog.execute(db)
 }
@@ -393,10 +395,11 @@ pub fn insert_user(db, name arg_1, email_address arg_2, org_id arg_3) {
 
   src
   |> string.trim
-  |> sl.adjust_squirrel_func_src([
-    sl.Arg(num: 1, label: "name", opts: [["nullable"]]),
-    sl.Arg(num: 2, label: "email", opts: [["label", "email_address"]]),
-    sl.Arg(num: 3, label: "org_id", opts: []),
-  ])
+  |> sl.adjust_squirrel_func_src(func.sql_args)
+  // |> sl.adjust_squirrel_func_src([
+  //   sl.Arg(num: 1, label: "name", opts: [["nullable"]]),
+  //   sl.Arg(num: 2, label: "email", opts: [["label", "email_address"]]),
+  //   sl.Arg(num: 3, label: "org_id", opts: [["nullable"]]),
+  // ])
   |> should.equal(expected |> string.trim)
 }

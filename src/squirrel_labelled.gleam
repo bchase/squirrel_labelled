@@ -86,12 +86,16 @@ pub fn write_squirrel_wrapper_funcs_with_labelled_params(src: String) -> Nil {
     case contains_copied_squirrel_src(funcs) {
       True ->
         [
-          ["import " <> project_name <> "/sql"],
-          imports(),
-          [uuid_decoder_func_src()],
-          [funcs_src],
+          [
+            ["import " <> project_name <> "/sql"],
+            imports(),
+          ]
+          |> list.flatten
+          |> string.join("\n")
+          ,
+          uuid_decoder_func_src(),
+          funcs_src,
         ]
-        |> list.flatten
         |> string.join("\n\n")
 
       False ->
@@ -600,11 +604,14 @@ pub fn make_parameter_nullable_on_line(
     let arg_name = "arg_" <> int.to_string(arg_num)
 
     let assert Ok(re) =
-      { "^(\\s+)[|][>]\\s*pog.parameter[(]pog.(\\w+)[(]" <> arg_name <> "[)][)]\\s*$" }
+      { "^(\\s+)[|][>]\\s*pog.parameter[(]pog.(\\w+)[(](uuid.to_string[(])?" <> arg_name <> "[)]?[)][)]\\s*$" }
       |> regexp.from_string
 
     case regexp.scan(re, line) {
-      [Match(_, [Some(ws), Some(func_name)])] ->
+      [Match(_, [Some(ws), Some(func_name), Some(_)])] ->
+        Ok(ws <> "|> pog.parameter(pog.nullable(pog." <> func_name <> ", uuid.to_string(" <> arg_name <> ")))")
+
+      [Match(_, [Some(ws), Some(func_name), ..])] ->
         Ok(ws <> "|> pog.parameter(pog.nullable(pog." <> func_name <> ", " <> arg_name <> "))")
 
       _ ->
