@@ -1,7 +1,8 @@
-// import gleam/io
-import gleam/option.{Some, None}
+import gleam/io
 import gleam/list
+import gleam/set
 import gleam/string
+import gleam/regexp
 import gleeunit
 import gleeunit/should
 import squirrel_labelled as sl
@@ -306,4 +307,96 @@ pub fn insert_user(
 
   sl.wrapper_func_src(func2, p2)
   |> should.equal(expected_wrapper_func_src)
+}
+
+// todo nullable
+pub fn squirrel_copy_and_nullify_test() {
+  let src = "
+pub fn insert_user(db, arg_1, arg_2, arg_3) {
+  let decoder = {
+    use id <- decode.field(0, uuid_decoder())
+    use name <- decode.field(1, decode.string)
+    use email <- decode.field(2, decode.string)
+    use org_id <- decode.field(3, uuid_decoder())
+    decode.success(InsertUserRow(id:, name:, email:, org_id:))
+  }
+
+  let query = \"
+    INSERT INTO
+      users
+      (
+        name,
+        email, --$ squirrel label skip, squirrel label email_address
+        org_id
+      )
+    VALUES
+      (
+        $1,
+        $2,
+        $3
+      )
+    RETURNING
+      id,
+      name,
+      email,
+      org_id
+\"
+
+  pog.query(query)
+  |> pog.parameter(pog.text(arg_1))
+  |> pog.parameter(pog.text(arg_2))
+  |> pog.parameter(pog.text(uuid.to_string(arg_3)))
+  |> pog.returning(decoder)
+  |> pog.execute(db)
+}
+"
+
+  let expected = "
+pub fn insert_user(db, name arg_1, email_address arg_2, org_id arg_3) {
+  let decoder = {
+    use id <- decode.field(0, uuid_decoder())
+    use name <- decode.field(1, decode.string)
+    use email <- decode.field(2, decode.string)
+    use org_id <- decode.field(3, uuid_decoder())
+    decode.success(InsertUserRow(id:, name:, email:, org_id:))
+  }
+
+  let query = \"
+    INSERT INTO
+      users
+      (
+        name,
+        email, --$ squirrel label skip, squirrel label email_address
+        org_id
+      )
+    VALUES
+      (
+        $1,
+        $2,
+        $3
+      )
+    RETURNING
+      id,
+      name,
+      email,
+      org_id
+\"
+
+  pog.query(query)
+  |> pog.parameter(pog.nullable(pog.text, arg_1))
+  |> pog.parameter(pog.text(arg_2))
+  |> pog.parameter(pog.text(uuid.to_string(arg_3)))
+  |> pog.returning(decoder)
+  |> pog.execute(db)
+}
+"
+
+  src
+  |> string.trim
+  |> sl.adjust_squirrel_func_src([
+    sl.Arg(num: 1, label: "name", opts: [["nullable"]]),
+    sl.Arg(num: 2, label: "email", opts: [["label", "email_address"]]),
+    sl.Arg(num: 3, label: "org_id", opts: []),
+  ])
+  |> should.equal(expected |> string.trim)
 }

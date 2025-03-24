@@ -1,4 +1,5 @@
 import gleam/io
+import gleam/set.{type Set}
 import gleam/option.{type Option, Some, None}
 import gleam/string
 import gleam/int
@@ -338,6 +339,18 @@ fn get_label_override(
   |> option.from_result
 }
 
+fn has_nullable_opt(
+  arg: Arg,
+) -> Bool {
+  arg.opts
+  |> list.any(fn(strs) {
+    case strs {
+      ["nullable"] -> True
+      _ -> False
+    }
+  })
+}
+
 fn arg_label(arg: Arg) -> String {
   case get_label_override(arg) {
     None -> arg.label
@@ -346,6 +359,13 @@ fn arg_label(arg: Arg) -> String {
 }
 
 pub fn wrapper_func_src(func: Func, params: List(LabelledParam)) -> String {
+  case list.any(func.sql_args, has_nullable_opt) {
+    True -> adjust_squirrel_func_src(func.src, func.sql_args)
+    False -> build_wrapper_func_src(func, params)
+  }
+}
+
+pub fn build_wrapper_func_src(func: Func, params: List(LabelledParam)) -> String {
   let params =
     params
     |> list.map(fn(param) {
@@ -487,4 +507,69 @@ fn parse_query(src: String) -> String {
       |> string.trim
     }
   }
+}
+
+// TODO not `pub`
+pub fn adjust_squirrel_func_src(
+  src: String,
+  args: List(Arg),
+) -> String {
+  let assert [params, ..rest] =
+    src
+    |> string.split(")")
+
+  let params =
+    params
+    |> list.fold(args, _, fn(acc: String, arg) {
+      let assert Ok(arg_re) =
+        { "(arg_" <> int.to_string(arg.num) <> ")" }
+        |> regexp.from_string
+
+      let label = arg_label(arg)
+
+      regexp.replace(each: arg_re, in: acc, with: label <> " \\1")
+    })
+
+  let nullable_args =
+    args
+    |> list.filter(has_nullable_opt)
+    |> list.map(fn(arg) { arg.num })
+    |> set.from_list
+
+  let rest =
+    rest
+    |> string.join(")")
+    |> string.split("\n")
+    |> list.map(make_parameter_nullable_on_line(_, nullable_args))
+    |> string.join("\n")
+
+  [params, ..[ rest ]]
+  |> string.join(")")
+}
+
+pub fn make_parameter_nullable_on_line(
+  line: String,
+  arg_nums: Set(Int),
+) -> String {
+  // "|> pog.parameter(pog.text(arg_1))"
+  // "|> pog.parameter(pog.nullable(pog.text, arg_1))"
+
+  arg_nums
+  |> set.to_list
+  |> list.find_map(fn(arg_num) {
+    let arg_name = "arg_" <> int.to_string(arg_num)
+
+    let assert Ok(re) =
+      { "^(\\s+)[|][>]\\s*pog.parameter[(]pog.(\\w+)[(]" <> arg_name <> "[)][)]\\s*$" }
+      |> regexp.from_string
+
+    case regexp.scan(re, line) {
+      [Match(_, [Some(ws), Some(func_name)])] ->
+        Ok(ws <> "|> pog.parameter(pog.nullable(pog." <> func_name <> ", " <> arg_name <> "))")
+
+      _ ->
+        Error(Nil)
+    }
+  })
+  |> result.unwrap(line)
 }
