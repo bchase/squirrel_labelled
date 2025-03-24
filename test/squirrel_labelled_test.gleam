@@ -358,7 +358,7 @@ pub fn insert_user(db, name arg_1, email_address arg_2, org_id arg_3) {
     use name <- decode.field(1, decode.string)
     use email <- decode.field(2, decode.string)
     use org_id <- decode.field(3, uuid_decoder())
-    decode.success(InsertUserRow(id:, name:, email:, org_id:))
+    decode.success(sql.InsertUserRow(id:, name:, email:, org_id:))
   }
 
   let query = \"

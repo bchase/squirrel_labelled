@@ -72,28 +72,64 @@ pub fn write_squirrel_wrapper_funcs_with_labelled_params(src: String) -> Nil {
   let project_name = project_name()
   let file = "src/" <> project_name <> "/labelled_sql.gleam"
 
-  let funcs_src = squirrel_wrapper_funcs_with_labelled_params(src)
+  let funcs = parse_func_srcs(src)
+
+  let funcs_src =
+    funcs
+    |> list.map(fn(func) {
+      let params = labelled_params_for(func)
+      wrapper_func_src(func, params)
+    })
+    |> string.join("\n\n")
 
   let output =
-    [
-      "import " <> project_name <> "/sql",
-      funcs_src
-    ]
-    |> string.join("\n\n")
+    case contains_copied_squirrel_src(funcs) {
+      True ->
+        [
+          ["import " <> project_name <> "/sql"],
+          imports(),
+          [uuid_decoder_func_src()],
+          [funcs_src],
+        ]
+        |> list.flatten
+        |> string.join("\n\n")
+
+      False ->
+        [
+          "import " <> project_name <> "/sql",
+          funcs_src,
+        ]
+        |> string.join("\n\n")
+    }
 
   let assert Ok(_) = simplifile.write(file, output)
 
   Nil
 }
 
-pub fn squirrel_wrapper_funcs_with_labelled_params(src: String) -> String {
-  src
-  |> parse_func_srcs
-  |> list.map(fn(func) {
-    let params = labelled_params_for(func)
-    wrapper_func_src(func, params)
-  })
-  |> string.join("\n\n")
+fn contains_copied_squirrel_src(funcs: List(Func)) -> Bool {
+  list.any(funcs, fn(func) { list.any(func.sql_args, has_nullable_opt) })
+}
+
+fn imports() -> List(String) {
+  [
+    "import gleam/dynamic/decode",
+    "import youid/uuid",
+    "import pog",
+  ]
+}
+
+fn uuid_decoder_func_src() -> String {
+"
+pub fn uuid_decoder() {
+  use bit_array <- decode.then(decode.bit_array)
+  case uuid.from_bit_array(bit_array) {
+    Ok(uuid) -> decode.success(uuid)
+    Error(_) -> decode.failure(uuid.v7(), \"uuid\")
+  }
+}
+"
+  |> string.trim
 }
 
 pub fn parse_args(sql: String) -> Result(List(Arg), String) {
@@ -540,7 +576,11 @@ pub fn adjust_squirrel_func_src(
     rest
     |> string.join(")")
     |> string.split("\n")
-    |> list.map(make_parameter_nullable_on_line(_, nullable_args))
+    |> list.map(fn(line) {
+      line
+      |> make_parameter_nullable_on_line(nullable_args)
+      |> qualify_sql_type_in_decode_success_call
+    })
     |> string.join("\n")
 
   [params, ..[ rest ]]
@@ -572,4 +612,23 @@ pub fn make_parameter_nullable_on_line(
     }
   })
   |> result.unwrap(line)
+}
+
+pub fn qualify_sql_type_in_decode_success_call(
+  line: String,
+) -> String {
+  // "decode.success(GetSomeRow(id:))"
+  // "decode.success(sql.GetSomeRow(id:))"
+
+  let assert Ok(re) =
+    { "^(\\s+)decode[.]success[(]([A-Z]\\w+)(.+)$" }
+    |> regexp.from_string
+
+  case regexp.scan(re, line) {
+    [Match(_, [Some(ws), Some(type_name), Some(rest)])] ->
+      ws <> "decode.success(sql." <> type_name <> rest
+
+    _ ->
+      line
+  }
 }
