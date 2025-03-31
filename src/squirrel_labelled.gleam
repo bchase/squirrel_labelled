@@ -145,6 +145,7 @@ pub fn parse_args(sql: String) -> Result(List(Arg), String) {
       Error("Query type could not be detected")
     }
   }
+  |> result.map(disambiguate_sql_keyword_args)
   |> result.map(list.unique)
 }
 
@@ -300,6 +301,120 @@ fn parse_sql_numbered_args(sql: String) -> List(Int) {
 }
 
 fn parse_arg(arg_num: Int, sql: String) -> Result(Arg, String) {
+  parse_column_arg(arg_num, sql)
+  |> result.lazy_or(fn() { parse_non_column_arg(arg_num, sql)} )
+}
+
+pub type SqlKeyword {
+  Limit
+  Offset
+  OrderBy
+}
+
+fn parse_non_column_arg_(arg_num: Int, sql: String) -> Result(SqlKeyword, String) {
+  let assert Ok(order_by_re) =
+    { "ORDER\\s+BY\\s+[$]" <> int.to_string(arg_num) }
+    |> regexp.compile(regexp.Options(case_insensitive: True, multi_line: True))
+
+  let assert Ok(limit_re) =
+    { "LIMIT\\s+[$]" <> int.to_string(arg_num) }
+    |> regexp.compile(regexp.Options(case_insensitive: True, multi_line: True))
+
+  let assert Ok(offset_re) =
+    { "OFFSET\\s+[$]" <> int.to_string(arg_num) }
+    |> regexp.compile(regexp.Options(case_insensitive: True, multi_line: True))
+
+  [
+    #(order_by_re, OrderBy),
+    #(limit_re, Limit),
+    #(offset_re, Offset),
+  ]
+  |> list.find_map(fn(x) {
+    let #(re, sk) = x
+
+    case regexp.check(re, sql) {
+      True -> Ok(sk)
+      False -> Error(Nil)
+    }
+  })
+  |> result.replace_error("No `SqlKeyword` match")
+}
+
+fn sql_keyword_to_str(sk: SqlKeyword) -> String {
+  case sk {
+    Limit -> "limit"
+    OrderBy -> "order_by"
+    Offset -> "offset"
+  }
+}
+
+fn all_sql_keywords() -> Set(SqlKeyword) {
+  let _totality_check =
+    fn(sk) {
+      case sk {
+        Limit -> Nil
+        OrderBy -> Nil
+        Offset -> Nil
+      }
+    }
+
+  [
+    Limit,
+    OrderBy,
+    Offset,
+  ]
+  |> set.from_list
+}
+
+fn parse_non_column_arg(num: Int, sql: String) -> Result(Arg, String) {
+  case parse_non_column_arg_(num, sql) {
+    Error(err) -> Error(err)
+    Ok(sk) ->
+      sk
+      |> sql_keyword_to_str
+      |> fn(label) {
+        Arg(label:, num:, opts: [ [ "_squirrel_sql_keyword" ] ])
+      }
+      |> Ok
+  }
+}
+
+fn disambiguate_sql_keyword_args(args: List(Arg)) -> List(Arg) {
+  all_sql_keywords()
+  |> set.to_list
+  |> list.fold(args, fn(acc, sk) {
+    acc
+    |> disambiguate_sql_keyword_arg(sk, _)
+  })
+  // list.map(args, disambiguate_sql_keyword_arg())
+}
+
+fn disambiguate_sql_keyword_arg(sk: SqlKeyword, args: List(Arg)) -> List(Arg) {
+  let sk = sql_keyword_to_str(sk)
+
+  let count =
+    args
+    |> list.filter(fn(arg) { arg.label == sk })
+    |> list.length
+
+  case count > 1 {
+    False -> args
+    True ->
+      args
+      |> list.map(fn(arg) {
+        case arg.label == sk && is_sql_keyword_arg(arg) {
+          False -> arg
+          True -> Arg(..arg, label: arg.label <> "_")
+        }
+      })
+  }
+}
+
+fn is_sql_keyword_arg(arg: Arg) -> Bool {
+  list.any(arg.opts, fn(opt) { opt == [ "_squirrel_sql_keyword" ] })
+}
+
+fn parse_column_arg(arg_num: Int, sql: String) -> Result(Arg, String) {
   let assert Ok(label_re) =
     // TODO https://www.postgresql.org/docs/current/functions-comparison.html
     { "((\\w+[.])?\\w+)\\s+(=|>=|<=|>|<|IS|IS NOT)\\s+[$]" <> int.to_string(arg_num) <> "\\s*([-][-][$]\\s*([^\\n]+))?" }

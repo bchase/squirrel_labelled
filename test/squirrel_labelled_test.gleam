@@ -1,8 +1,6 @@
 import gleam/io
 import gleam/list
-import gleam/set
 import gleam/string
-import gleam/regexp
 import gleeunit
 import gleeunit/should
 import squirrel_labelled as sl
@@ -12,7 +10,7 @@ pub fn main() {
 }
 
 pub fn read_test() {
-  sl.parse_kohort()
+  // sl.parse_kohort()
 
   True |> should.equal(True)
 }
@@ -397,4 +395,49 @@ pub fn insert_user(db, name arg_1, email_address arg_2, org_id arg_3) {
   //   sl.Arg(num: 3, label: "org_id", opts: [["nullable"]]),
   // ])
   |> should.equal(expected |> string.trim)
+}
+
+pub fn non_colum_args_test() {
+  let query = string.trim("
+    SELECT
+      id,
+    FROM
+      hoges
+    WHERE
+      org_id = $1
+    ORDER BY $2
+    LIMIT $3
+    OFFSET $4
+  ")
+
+  sl.parse_args(query)
+  |> should.be_ok
+  |> should.equal( [
+    sl.Arg(1, "org_id", []),
+    sl.Arg(2, "order_by", [["_squirrel_sql_keyword"]]),
+    sl.Arg(3, "limit", [["_squirrel_sql_keyword"]]),
+    sl.Arg(4, "offset", [["_squirrel_sql_keyword"]]),
+  ])
+
+  //
+  //
+
+  let query = string.trim("
+    SELECT
+      id,
+    FROM
+      hoges
+    WHERE
+      org_id = $1
+      limit = $2
+    LIMIT $3
+  ")
+
+  sl.parse_args(query)
+  |> should.be_ok
+  |> should.equal([
+    sl.Arg(1, "org_id", []),
+    sl.Arg(2, "limit", []),
+    sl.Arg(3, "limit_", [["_squirrel_sql_keyword"]]),
+  ])
 }
