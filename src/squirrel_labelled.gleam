@@ -435,7 +435,7 @@ fn is_sql_keyword_arg(arg: Arg) -> Bool {
 fn parse_column_arg(arg_num: Int, sql: String) -> Result(Arg, String) {
   let assert Ok(label_re) =
     // TODO https://www.postgresql.org/docs/current/functions-comparison.html
-    { "((\\w+[.])?\\w+)\\s+(=|>=|<=|>|<|IS|IS NOT)\\s+[$]" <> int.to_string(arg_num) <> "\\s*([-][-][$]\\s*([^\\n]+))?" }
+    { "((\\w+[.])?\\w+)\\s+(=|>=|<=|>|<|IS|IS NOT)\\s+[$]" <> int.to_string(arg_num) <> "\\b\\s*([-][-][$]\\s*([^\\n]+))?" }
     |> regexp.compile(regexp.Options(case_insensitive: False, multi_line: True))
 
   case regexp.scan(label_re, sql) {
