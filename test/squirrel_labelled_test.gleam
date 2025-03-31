@@ -441,3 +441,21 @@ pub fn non_colum_args_test() {
     sl.Arg(3, "limit_", [["_squirrel_sql_keyword"]]),
   ])
 }
+
+pub fn gleam_keywords_test() {
+  let query = string.trim("
+    SELECT
+      id,
+    FROM
+      hoges
+    WHERE org_id = $1
+      AND type = $2
+  ")
+
+  sl.parse_args(query)
+  |> should.be_ok
+  |> should.equal( [
+    sl.Arg(1, "org_id", []),
+    sl.Arg(2, "type_", [ ["_squirrel_gleam_keyword"] ]),
+  ])
+}

@@ -146,6 +146,7 @@ pub fn parse_args(sql: String) -> Result(List(Arg), String) {
     }
   }
   |> result.map(disambiguate_sql_keyword_args)
+  |> result.map(adjust_gleam_keyword_labelled_args)
   |> result.map(list.unique)
 }
 
@@ -377,6 +378,22 @@ fn parse_non_column_arg(num: Int, sql: String) -> Result(Arg, String) {
       }
       |> Ok
   }
+}
+
+const gleam_keywords = [
+  "type",
+]
+
+fn adjust_gleam_keyword_labelled_args(args: List(Arg)) -> List(Arg) {
+  args
+  |> list.map(fn(arg) {
+    case arg.label |> list.contains(gleam_keywords, _) {
+      False -> arg
+      True -> Arg(..arg, label: arg.label <> "_", opts: list.append(arg.opts, [
+        [ "_squirrel_gleam_keyword" ]
+      ]))
+    }
+  })
 }
 
 fn disambiguate_sql_keyword_args(args: List(Arg)) -> List(Arg) {
