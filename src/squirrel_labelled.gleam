@@ -106,6 +106,7 @@ pub fn write_squirrel_wrapper_funcs_with_labelled_params(src: String) -> Nil {
         |> string.join("\n\n")
     }
 
+
   let assert Ok(_) = simplifile.write(file, output)
 
   Nil
@@ -700,7 +701,7 @@ pub fn adjust_squirrel_func_src(
     params
     |> list.fold(args, _, fn(acc: String, arg) {
       let assert Ok(arg_re) =
-        { "(arg_" <> int.to_string(arg.num) <> ")" }
+        { "(arg_" <> int.to_string(arg.num) <> ")\\b" }
         |> regexp.from_string
 
       let label = arg_label(arg)
