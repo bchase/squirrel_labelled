@@ -197,21 +197,27 @@ pub fn parse_insert_syntax(sql: String) -> Result(List(Arg), String) {
   |> string.replace(each: "\n", with: "\t")
   |> regexp.scan(insert_re, _)
   |> fn(m) {
+    let assert Ok(empty_or_whitespace_re) = regexp.from_string("^\\s*$")
+    let assert Ok(line_re) =
+      //              1                       2      3         4
+      "^\\s*[\\]?[\"]?(\\w+)[\\]?[\"]?[,]?\\s*([-]{2}([$])?\\s*(.+))?$"
+      |> regexp.from_string
+
     case m {
       [Match(_, [_, Some(cols), Some(vals)])] -> {
         let cols =
           cols
           |> string.split("\t")
           |> list.filter(fn(str) {
-            // TODO mv re
-            let assert Ok(empty_or_whitespace_re) = regexp.from_string("^\\s*$")
             !regexp.check(empty_or_whitespace_re, str)
           })
           |> list.map(fn(str) {
-            // TODO mv re
-            let assert Ok(re) = regexp.from_string("^\\s*(\\w+)[,]?\\s*([-]{2}([$])?\\s*(.+))?$")
-            //                                           1             2      3         4
-            case regexp.scan(re, str) {
+            let str =
+              str
+              |> string.replace(each: "\\", with: "")
+              |> string.replace(each: "\"", with: "")
+
+            case regexp.scan(line_re, str) {
               [Match(_, [Some(val), _, Some(_), comment])] ->  {
                 #(
                   val |> string.trim,
@@ -226,7 +232,10 @@ pub fn parse_insert_syntax(sql: String) -> Result(List(Arg), String) {
                 )
               }
 
-              _ -> panic as "could not find `INSERT` value"
+              _ -> {
+                io.debug(str)
+                panic as "could not find `INSERT` value"
+              }
             }
           })
 
