@@ -459,3 +459,29 @@ pub fn gleam_keywords_test() {
     sl.Arg(2, "type_", [ ["_squirrel_gleam_keyword"] ]),
   ])
 }
+
+pub fn upsert_table_alias_test() {
+  let query = string.trim("
+    INSERT INTO
+      hubspot_companies as hsc
+      (
+        org_id,
+        ext_id,
+        ext_created_at,
+        ext_updated_at,
+        name --$ squirrel nullable
+      )
+    VALUES ( $1, $2, $3, $4, $5 )
+    ON CONFLICT (ext_id)
+    DO UPDATE SET
+      ext_updated_at = $4
+    WHERE hsc.org_id = $1
+    RETURNING
+      id,
+      name,
+      ext_id
+  ")
+
+  sl.parse_args(query)
+  |> should.be_ok
+}

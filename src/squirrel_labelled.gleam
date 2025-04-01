@@ -182,7 +182,7 @@ fn detect_query_type(sql: String) -> QueryType {
 
 pub fn parse_insert_syntax(sql: String) -> Result(List(Arg), String) {
   let assert Ok(insert_re) =
-    "INSERT\\s+INTO\\s+\\w+\\s+[(](.+)[)]\\s+VALUES\\s+[(](.+)[)]"
+    "INSERT\\s+INTO\\s+\\w+\\s+(as\\s+\\w+\\s+)?[(](.+)[)]\\s+VALUES\\s+[(](.+)[)]"
     |> regexp.from_string
 
   let assert Ok(label_re) =
@@ -198,7 +198,7 @@ pub fn parse_insert_syntax(sql: String) -> Result(List(Arg), String) {
   |> regexp.scan(insert_re, _)
   |> fn(m) {
     case m {
-      [Match(_, [Some(cols), Some(vals)])] -> {
+      [Match(_, [_, Some(cols), Some(vals)])] -> {
         let cols =
           cols
           |> string.split("\t")
