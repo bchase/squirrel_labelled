@@ -94,6 +94,7 @@ pub fn write_squirrel_wrapper_funcs_with_labelled_params(src: String) -> Nil {
           |> string.join("\n")
           ,
           uuid_decoder_func_src(),
+          nullable_uuid_func_src(),
           funcs_src,
         ]
         |> string.join("\n\n")
@@ -118,8 +119,9 @@ fn contains_copied_squirrel_src(funcs: List(Func)) -> Bool {
 
 fn imports() -> List(String) {
   [
+    "import gleam/option.{type Option, Some, None}",
     "import gleam/dynamic/decode",
-    "import youid/uuid",
+    "import youid/uuid.{type Uuid}",
     "import pog",
   ]
 }
@@ -131,6 +133,25 @@ pub fn uuid_decoder() {
   case uuid.from_bit_array(bit_array) {
     Ok(uuid) -> decode.success(uuid)
     Error(_) -> decode.failure(uuid.v7(), \"uuid\")
+  }
+}
+"
+  |> string.trim
+}
+
+fn nullable_uuid_func_src() -> String {
+"
+pub fn nullable_uuid(
+  opt: Option(Uuid),
+) -> pog.Value {
+  case opt {
+    None ->
+      pog.null()
+
+    Some(uuid) ->
+      uuid
+      |> uuid.to_string
+      |> pog.text
   }
 }
 "
@@ -756,8 +777,9 @@ pub fn make_parameter_nullable_on_line(
       |> regexp.from_string
 
     case regexp.scan(re, line) {
-      [Match(_, [Some(ws), Some(func_name), Some(_)])] ->
-        Ok(ws <> "|> pog.parameter(pog.nullable(pog." <> func_name <> ", uuid.to_string(" <> arg_name <> ")))")
+      [Match(_, [Some(ws), Some(_func_name), Some(_uuid_to_string)])] ->
+        // Ok(ws <> "|> pog.parameter(pog.nullable(pog." <> func_name <> ", uuid.to_string(" <> arg_name <> ")))")
+        Ok(ws <> "|> pog.parameter(nullable_uuid(" <> arg_name <> "))")
 
       [Match(_, [Some(ws), Some(func_name), ..])] ->
         Ok(ws <> "|> pog.parameter(pog.nullable(pog." <> func_name <> ", " <> arg_name <> "))")
