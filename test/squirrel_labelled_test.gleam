@@ -442,6 +442,29 @@ pub fn non_colum_args_test() {
   ])
 }
 
+pub fn any_args_test() {
+  let query = string.trim("
+    SELECT
+      id,
+    FROM
+      hoges
+    WHERE
+      id = ANY($1)
+    ORDER BY $2
+    LIMIT $3
+    OFFSET $4
+  ")
+
+  sl.parse_args(query)
+  |> should.be_ok
+  |> should.equal( [
+    sl.Arg(1, "id", [["_squirrel_sql_any"]]),
+    sl.Arg(2, "order_by", [["_squirrel_sql_keyword"]]),
+    sl.Arg(3, "limit", [["_squirrel_sql_keyword"]]),
+    sl.Arg(4, "offset", [["_squirrel_sql_keyword"]]),
+  ])
+}
+
 pub fn gleam_keywords_test() {
   let query = string.trim("
     SELECT

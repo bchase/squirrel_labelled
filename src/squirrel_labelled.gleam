@@ -334,6 +334,7 @@ fn parse_sql_numbered_args(sql: String) -> List(Int) {
 
 fn parse_arg(arg_num: Int, sql: String) -> Result(Arg, String) {
   parse_column_arg(arg_num, sql)
+  |> result.lazy_or(fn() { parse_any_arg(arg_num, sql)} )
   |> result.lazy_or(fn() { parse_non_column_arg(arg_num, sql)} )
 }
 
@@ -466,21 +467,53 @@ fn parse_column_arg(arg_num: Int, sql: String) -> Result(Arg, String) {
   let assert Ok(label_re) =
     // TODO https://www.postgresql.org/docs/current/functions-comparison.html
     { "((\\w+[.])?\\w+)\\s+(=|>=|<=|>|<|IS|IS NOT)\\s+[$]" <> int.to_string(arg_num) <> "\\b\\s*([-][-][$]\\s*([^\\n]+))?" }
+    // 12                  3                                                                    4             5
     |> regexp.compile(regexp.Options(case_insensitive: False, multi_line: True))
 
   case regexp.scan(label_re, sql) {
+    [Match(submatches: [Some(label), Some(_prefix), _, _, comment], ..), ..] |
     [Match(submatches: [Some(label), _, _, _, comment], ..), ..] -> {
       let label = string.replace(label, each: ".", with: "_")
       let comment = comment |> option.map(string.trim)
       let opts = parse_opts(comment)
       Ok(Arg(num: arg_num, label: label, opts: opts))
     }
+
     [Match(submatches: [Some(label), ..], ..), ..] -> {
       let label = string.replace(label, each: ".", with: "_")
       Ok(Arg(num: arg_num, label: label, opts: []))
     }
+
     [] -> Error("No label match")
+
     _ ->  Error("Multiple label matches")
+  }
+}
+
+
+fn parse_any_arg(arg_num: Int, sql: String) -> Result(Arg, String) {
+  let assert Ok(label_re) =
+    { "((\\w+[.])?\\w+)\\s*[=]\\s*ANY[(][$]" <> int.to_string(arg_num) <> "[)]\\s*([-][-][$]\\s*([^\\n]+))?" }
+    // 12                                                                         3             4
+    |> regexp.compile(regexp.Options(case_insensitive: False, multi_line: True))
+
+  case regexp.scan(label_re, sql) {
+    [Match(submatches: [Some(label), Some(_prefix), _, comment], ..), ..] |
+    [Match(submatches: [Some(label), _, comment], ..), ..] -> {
+      let label = string.replace(label, each: ".", with: "_")
+      let comment = comment |> option.map(string.trim)
+      let opts = parse_opts(comment)
+      Ok(Arg(num: arg_num, label: label, opts: [["_squirrel_sql_any"], ..opts]))
+    }
+
+    [Match(submatches: [Some(label), ..], ..), ..] -> {
+      let label = string.replace(label, each: ".", with: "_")
+      Ok(Arg(num: arg_num, label: label, opts: [["_squirrel_sql_any"]]))
+    }
+
+    [] -> Error("`parse_any_arg` No label match")
+
+    _ ->  Error("`parse_any_arg` Multiple label matches")
   }
 }
 
