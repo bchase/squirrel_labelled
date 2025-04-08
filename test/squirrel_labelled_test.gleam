@@ -472,14 +472,14 @@ pub fn gleam_keywords_test() {
     FROM
       hoges
     WHERE org_id = $1
-      AND type = $2
+      AND type = $2 --$ squirrel nullable
   ")
 
   sl.parse_args(query)
   |> should.be_ok
   |> should.equal( [
     sl.Arg(1, "org_id", []),
-    sl.Arg(2, "type_", [ ["_squirrel_gleam_keyword"] ]),
+    sl.Arg(2, "type_", [ ["nullable"], ["_squirrel_gleam_keyword"] ]),
   ])
 }
 
