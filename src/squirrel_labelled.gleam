@@ -203,8 +203,8 @@ fn detect_query_type(sql: String) -> QueryType {
 
 pub fn parse_insert_syntax(sql: String) -> Result(List(Arg), String) {
   let assert Ok(insert_re) =
-    "INSERT\\s+INTO\\s+\\w+\\s+(as\\s+\\w+\\s+)?[(](.+)[)]\\s+VALUES\\s+[(](.+)[)]"
-    |> regexp.from_string
+    "INSERT\\s+INTO\\s+\\w+\\s+(AS\\s+\\w+\\s+)?[(](.+)[)]\\s+VALUES\\s+[(](.+)[)]"
+    |> regexp.compile(regexp.Options(case_insensitive: True, multi_line: False))
 
   let assert Ok(label_re) =
     "^(\\w+)"
