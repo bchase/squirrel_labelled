@@ -203,7 +203,7 @@ fn detect_query_type(sql: String) -> QueryType {
 
 pub fn parse_insert_syntax(sql: String) -> Result(List(Arg), String) {
   let assert Ok(insert_re) =
-    "INSERT\\s+INTO\\s+\\w+\\s+(AS\\s+\\w+\\s+)?[(](.+)[)]\\s+VALUES\\s+[(](.+)[)]"
+    "INSERT\\s+INTO\\s+\\w+\\s+(as\\s+\\w+\\s+)?[(](.+)[)]\\s+VALUES\\s+[(](.+)[)]"
     |> regexp.compile(regexp.Options(case_insensitive: True, multi_line: False))
 
   let assert Ok(label_re) =
@@ -785,7 +785,7 @@ pub fn adjust_squirrel_func_src(
     |> list.map(fn(line) {
       line
       |> make_parameter_nullable_on_line(nullable_args)
-      |> qualify_sql_type_in_decode_success_call
+      |> qualify_sql_type_constructor
     })
     |> string.join("\n")
 
@@ -824,6 +824,14 @@ pub fn make_parameter_nullable_on_line(
   |> result.unwrap(line)
 }
 
+pub fn qualify_sql_type_constructor(
+  line: String,
+) -> String {
+  line
+  |> qualify_sql_type_in_decode_success_call
+  |> qualify_sql_type_at_beginning_of_line
+}
+
 pub fn qualify_sql_type_in_decode_success_call(
   line: String,
 ) -> String {
@@ -831,12 +839,28 @@ pub fn qualify_sql_type_in_decode_success_call(
   // "decode.success(sql.GetSomeRow(id:))"
 
   let assert Ok(re) =
-    { "^(\\s+)decode[.]success[(]([A-Z]\\w+)(.+)$" }
+    { "^(\\s+)decode[.]success[(]\\n*\\s*([A-Z]\\w+)(.+)$" }
     |> regexp.from_string
 
   case regexp.scan(re, line) {
     [Match(_, [Some(ws), Some(type_name), Some(rest)])] ->
       ws <> "decode.success(sql." <> type_name <> rest
+
+    _ ->
+      line
+  }
+}
+
+pub fn qualify_sql_type_at_beginning_of_line(
+  line: String,
+) -> String {
+  let assert Ok(re) =
+    { "^(\\s*)([A-Z]\\w+)([(].*)$" }
+    |> regexp.from_string
+
+  case regexp.scan(re, line) {
+    [Match(_, [Some(ws), Some(type_name), Some(rest)])] ->
+      ws <> "sql." <> type_name <> rest
 
     _ ->
       line
