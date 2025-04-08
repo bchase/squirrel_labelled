@@ -380,7 +380,7 @@ pub fn insert_user(db, name arg_1, email_address arg_2, org_id arg_3) {
   |> pog.query
   |> pog.parameter(pog.nullable(pog.text, arg_1))
   |> pog.parameter(pog.text(arg_2))
-  |> pog.parameter(pog.nullable(pog.text, uuid.to_string(arg_3)))
+  |> pog.parameter(nullable_uuid(arg_3))
   |> pog.returning(decoder)
   |> pog.execute(db)
 }
