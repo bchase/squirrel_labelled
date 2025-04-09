@@ -344,17 +344,17 @@ pub type SqlKeyword {
   OrderBy
 }
 
-fn parse_non_column_arg_(arg_num: Int, sql: String) -> Result(SqlKeyword, String) {
+fn parse_non_column_arg_(arg_num: Int, sql: String) -> Result(#(SqlKeyword, Option(String)), String) {
   let assert Ok(order_by_re) =
-    { "ORDER\\s+BY\\s+[$]" <> int.to_string(arg_num) }
+    { "ORDER\\s+BY\\s+[$]" <> int.to_string(arg_num) <> "(\\s*[-][-][$]\\s*(.+))?" }
     |> regexp.compile(regexp.Options(case_insensitive: True, multi_line: True))
 
   let assert Ok(limit_re) =
-    { "LIMIT\\s+[$]" <> int.to_string(arg_num) }
+    { "LIMIT\\s+[$]" <> int.to_string(arg_num) <> "(\\s*[-][-][$]\\s*(.+))?" }
     |> regexp.compile(regexp.Options(case_insensitive: True, multi_line: True))
 
   let assert Ok(offset_re) =
-    { "OFFSET\\s+[$]" <> int.to_string(arg_num) }
+    { "OFFSET\\s+[$]" <> int.to_string(arg_num) <> "(\\s*[-][-][$]\\s*(.+))?" }
     |> regexp.compile(regexp.Options(case_insensitive: True, multi_line: True))
 
   [
@@ -365,9 +365,15 @@ fn parse_non_column_arg_(arg_num: Int, sql: String) -> Result(SqlKeyword, String
   |> list.find_map(fn(x) {
     let #(re, sk) = x
 
-    case regexp.check(re, sql) {
-      True -> Ok(sk)
-      False -> Error(Nil)
+    case regexp.scan(re, sql) {
+      [] -> Error(Nil)
+
+      [Match(submatches: [_, comment], ..)] ->
+        Ok(#(sk, comment))
+
+      _ ->
+        Ok(#(sk, None))
+
     }
   })
   |> result.replace_error("No `SqlKeyword` match")
@@ -402,11 +408,17 @@ fn all_sql_keywords() -> Set(SqlKeyword) {
 fn parse_non_column_arg(num: Int, sql: String) -> Result(Arg, String) {
   case parse_non_column_arg_(num, sql) {
     Error(err) -> Error(err)
-    Ok(sk) ->
-      sk
-      |> sql_keyword_to_str
-      |> fn(label) {
-        Arg(label:, num:, opts: [ [ "_squirrel_sql_keyword" ] ])
+    Ok(x) ->
+      {
+        let #(sk, comment_str) = x
+        let label = sql_keyword_to_str(sk)
+
+        let opts =
+          comment_str
+          |> parse_opts
+          |> list.append([["_squirrel_sql_keyword"]])
+
+        Arg(label:, num:, opts:)
       }
       |> Ok
   }
