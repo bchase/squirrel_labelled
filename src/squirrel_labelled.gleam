@@ -674,24 +674,29 @@ pub fn parse_func_srcs(src: String) -> List(Func) {
   |> list.map(fn(src) {
     case regexp.scan(func_name_re, string.replace(src, each: "\n", with: " ")) {
       [Match(_, [Some(name), Some(params)])] -> {
-        let params =
-          params
-          |> string.split(",")
-          |> list.map(string.trim)
+        case string.ends_with(name, "_encoder") {
+          True -> Error(Nil)
+          False -> {
+            let params =
+              params
+              |> string.split(",")
+              |> list.map(string.trim)
 
-        let query = parse_query(src)
-        let sql_args =
-          case parse_args(query) {
-            Error(err) -> {
-              io.debug(err)
-              io.debug(src)
-              panic as "`parse_args` failed"
-            }
+            let query = parse_query(src)
+            let sql_args =
+              case parse_args(query) {
+                Error(err) -> {
+                  io.debug(err)
+                  io.debug(src)
+                  panic as "`parse_args` failed"
+                }
 
-            Ok(x) -> x
+                Ok(x) -> x
+              }
+
+            Ok(Func(name:, src:, query:, params:, sql_args:))
           }
-
-        Func(name:, src:, query:, params:, sql_args:)
+        }
       }
 
       _ -> {
@@ -700,6 +705,7 @@ pub fn parse_func_srcs(src: String) -> List(Func) {
       }
     }
   })
+  |> result.values
   |> list.sort(fn(a, b) { string.compare(a.name, b.name) })
 }
 
