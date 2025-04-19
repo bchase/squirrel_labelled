@@ -796,8 +796,10 @@ pub fn adjust_squirrel_func_src(
     |> string.split("\n")
     |> list.map(fn(line) {
       line
+      // |> io.debug
       |> make_parameter_nullable_on_line(nullable_args)
       |> qualify_sql_type_constructor
+      |> qualify_sql_encoder_funcs
     })
     |> string.join("\n")
 
@@ -877,4 +879,14 @@ pub fn qualify_sql_type_at_beginning_of_line(
     _ ->
       line
   }
+}
+
+fn qualify_sql_encoder_funcs(
+  line: String,
+) -> String {
+  let assert Ok(re) =
+    { "([a-z0-9_]\\w+[_]encoder[(])" }
+    |> regexp.from_string
+
+  regexp.replace(re, line, "sql.\\1")
 }

@@ -313,33 +313,38 @@ pub fn insert_user(db, arg_1, arg_2, arg_3) {
     use name <- decode.field(1, decode.string)
     use email <- decode.field(2, decode.string)
     use org_id <- decode.field(3, uuid_decoder())
-    decode.success(InsertUserRow(id:, name:, email:, org_id:))
+    use some_enum <- decode.field(4, uuid_decoder())
+    decode.success(InsertUserRow(id:, name:, email:, org_id:, some_enum:))
   }
 
   \"
     INSERT INTO
       users
       (
-        name,  --$ squirrel nullable
-        email, --$ squirrel label skip, squirrel label email_address
-        org_id --$ squirrel nullable
+        name,   --$ squirrel nullable
+        email,  --$ squirrel label skip, squirrel label email_address
+        org_id, --$ squirrel nullable
+        some_enum
       )
     VALUES
       (
         $1,
         $2,
-        $3
+        $3,
+        $4
       )
     RETURNING
       id,
       name,
       email,
-      org_id
+      org_id,
+      some_enum
 \"
   |> pog.query
   |> pog.parameter(pog.text(arg_1))
   |> pog.parameter(pog.text(arg_2))
   |> pog.parameter(pog.text(uuid.to_string(arg_3)))
+  |> pog.parameter(some_enum_encoder(arg_4))
   |> pog.returning(decoder)
   |> pog.execute(db)
 }
@@ -354,33 +359,38 @@ pub fn insert_user(db, name arg_1, email_address arg_2, org_id arg_3) {
     use name <- decode.field(1, decode.string)
     use email <- decode.field(2, decode.string)
     use org_id <- decode.field(3, uuid_decoder())
-    decode.success(sql.InsertUserRow(id:, name:, email:, org_id:))
+    use some_enum <- decode.field(4, uuid_decoder())
+    decode.success(sql.InsertUserRow(id:, name:, email:, org_id:, some_enum:))
   }
 
   \"
     INSERT INTO
       users
       (
-        name,  --$ squirrel nullable
-        email, --$ squirrel label skip, squirrel label email_address
-        org_id --$ squirrel nullable
+        name,   --$ squirrel nullable
+        email,  --$ squirrel label skip, squirrel label email_address
+        org_id, --$ squirrel nullable
+        some_enum
       )
     VALUES
       (
         $1,
         $2,
-        $3
+        $3,
+        $4
       )
     RETURNING
       id,
       name,
       email,
-      org_id
+      org_id,
+      some_enum
 \"
   |> pog.query
   |> pog.parameter(pog.nullable(pog.text, arg_1))
   |> pog.parameter(pog.text(arg_2))
   |> pog.parameter(nullable_uuid(arg_3))
+  |> pog.parameter(sql.some_enum_encoder(arg_4))
   |> pog.returning(decoder)
   |> pog.execute(db)
 }
