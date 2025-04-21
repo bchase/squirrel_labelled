@@ -159,33 +159,30 @@ pub fn nullable_uuid(
   |> string.trim
 }
 
-pub fn parse_args(sql: String) -> Result(List(Arg), String) {
-  // let sql = drop_with_statement(sql)
-  let query = with_statement(sql)
+pub fn parse_args_(sql: String) -> Result(List(Arg), String) {
+  case detect_query_type(sql) {
+    Select | Update | Delete -> parse_select_update_delete_syntax(sql)
+    Insert -> parse_insert_syntax(sql)
+    Unknown | NoQuery -> {
 
-  let base_args =
-    case detect_query_type(query.sql) {
-      Select | Update | Delete -> parse_select_update_delete_syntax(sql)
-      Insert -> parse_insert_syntax(sql)
-      Unknown | NoQuery -> {
-
-        io.debug(sql)
-        Error("Query type could not be detected")
-      }
+      io.debug(sql)
+      Error("Query type could not be detected")
     }
-    |> result.map(disambiguate_sql_keyword_args)
-    |> result.map(adjust_gleam_keyword_labelled_args)
-    |> result.map(list.unique)
+  }
+  |> result.map(disambiguate_sql_keyword_args)
+  |> result.map(adjust_gleam_keyword_labelled_args)
+  |> result.map(list.unique)
+}
 
-  base_args
-  |> result.map(fn(base_args) {
-    query.with
-    |> option.to_result(Nil)
-    |> result.map(parse_args)
-    |> result.map(result.replace_error(_, Nil))
-    |> result.flatten
-    |> result.unwrap([])
-    |> list.append(base_args)
+pub fn parse_args(sql: String) -> Result(List(Arg), String) {
+  let query = parse_cte_queries(sql, [])
+
+  [query.sql, ..query.ctes]
+  |> list.map(parse_args_)
+  |> result.all
+  |> result.map(list.flatten)
+  |> result.map(fn(args) {
+    args
     |> list.group(fn(arg) { arg.num })
     |> dict.map_values(fn(_num, args) {
       let opts =
@@ -215,35 +212,60 @@ type QueryType {
 type Query {
   Query(
     sql: String,
-    with: Option(String),
+    ctes: List(String),
   )
 }
 
-fn with_statement(sql: String) -> Query {
-  let assert Ok(initial_with_statement_and_select_re) =
-    "^\\s*WITH\\s[a-z]\\w+\\s*AS\\s*[(](.+)[)]\\s*SELECT(.+)"
+fn parse_cte_queries(sql: String, ctes: List(String)) -> Query {
+  let assert Ok(comma_start) =
+    "^\\s*[,]\\s*"
     |> regexp.compile(regexp.Options(case_insensitive: True, multi_line: True))
 
-  let matches =
+  let assert Ok(cte_start) =
+    "^(\\s*WITH)?\\s*[a-z]\\w*\\s*AS\\s*"
+    |> regexp.compile(regexp.Options(case_insensitive: True, multi_line: True))
+
+  let sql =
     sql
-    |> string.replace(each: "\n", with: "\t")
-    |> regexp.scan(initial_with_statement_and_select_re, _)
+    |> regexp.replace(comma_start, _, "")
+    |> regexp.replace(cte_start, _,  "")
 
-  case matches {
-    [Match(submatches: [Some(with_body), Some(select_body)], ..)] -> {
-      let sql =
-        select_body
-        |> fn(sql) { "SELECT" <> sql }
-        |> string.replace(each: "\t", with: "\n")
+  case consume_all_within_parens(sql) {
+    #("", sql) ->
+      Query(sql:, ctes:)
 
-      let with =
-        with_body
-        |> string.replace(each: "\t", with: "\n")
-        |> Some
+    #(cte, rest) ->
+      parse_cte_queries(rest, list.append(ctes, [cte]))
+  }
+}
 
-      Query(sql:, with:)
-    }
-    _ -> Query(sql:, with: None)
+fn consume_all_within_parens(str: String) -> #(String, String) {
+  case string.starts_with(str, "(") {
+    False -> #("", str)
+    True ->
+      str
+      |> string.to_graphemes
+      |> list.fold(#("", "", 0), fn(x, char) {
+        let #(in_parens, after_parens, parens) = x
+
+        case parens, char {
+          0, "(" -> #(in_parens, after_parens, parens)
+          0, _ -> #(in_parens, after_parens <> char, parens)
+          _, "(" -> #(in_parens <> char, after_parens, parens + 1)
+          _, ")" -> #(in_parens <> char, after_parens, parens - 1)
+          _, _ -> #(in_parens <> char, after_parens, parens)
+        }
+      })
+      |> fn(x) {
+        let #(in, after, _) = x
+
+        let in =
+          in
+          |> string.drop_start(1)
+          |> string.drop_end(1)
+
+        #(in, after)
+      }
   }
 }
 

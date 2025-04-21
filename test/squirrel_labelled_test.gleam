@@ -69,6 +69,14 @@ pub fn with_select_test() {
         somewhere
       WHERE
         something = $2
+    ),
+    h AS (
+      SELECT
+        id
+      FROM
+        hoges
+      WHERE
+        foobar = $3
     )
     SELECT
       w.id,
@@ -88,6 +96,7 @@ pub fn with_select_test() {
   |> should.equal(Ok([
     sl.Arg(num: 1, label: "w_org_id", opts: []),
     sl.Arg(num: 2, label: "something", opts: []),
+    sl.Arg(num: 3, label: "foobar", opts: []),
   ]))
 }
 
