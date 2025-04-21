@@ -893,7 +893,7 @@ pub fn adjust_squirrel_func_src(
       // |> io.debug
       |> make_parameter_nullable_on_line(nullable_args)
       |> qualify_sql_type_constructor
-      |> qualify_sql_encoder_funcs
+      |> qualify_sql_encoder_funcs(nullable_args)
     })
     |> string.join("\n")
 
@@ -977,10 +977,40 @@ pub fn qualify_sql_type_at_beginning_of_line(
 
 fn qualify_sql_encoder_funcs(
   line: String,
+  nullable_args: Set(Int),
 ) -> String {
-  let assert Ok(re) =
-    { "([a-z0-9_]\\w+[_]encoder[(])" }
+  // |> pog.parameter(sql.currency_encoder(arg_6))
+  // |> pog.parameter(pog.nullable(sql.currency_encoder, arg_6))
+
+  let assert Ok(arg_num_re) =
+    "arg_(\\d+)" |> regexp.from_string
+
+  let assert Ok(encoder_re) =
+    { "([a-z0-9_]\\w+[_]encoder)" }
     |> regexp.from_string
 
-  regexp.replace(re, line, "sql.\\1")
+  case regexp.scan(arg_num_re, line), regexp.scan(encoder_re, line) {
+    [Match(submatches: [Some(num_str)], ..)], [Match(submatches: [Some(encoder)], ..)] ->
+      case int.parse(num_str) {
+        Error(_) -> // impossible case
+          line
+
+        Ok(num) ->
+          case set.contains(nullable_args, num) {
+            False ->
+              regexp.replace(encoder_re, line, "sql.\\1")
+
+            True ->
+              {
+                "  |> pog.parameter(pog.nullable(sql." <>
+                encoder <>
+                ", arg_" <>
+                num_str <>
+                "))"
+              }
+          }
+      }
+
+    _, _ -> line
+  }
 }
