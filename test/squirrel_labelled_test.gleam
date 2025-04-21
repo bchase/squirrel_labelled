@@ -60,6 +60,37 @@ pub fn update_test() {
   ]))
 }
 
+pub fn with_select_test() {
+  let sql = "
+    WITH things AS (
+      SELECT
+        *
+      FROM
+        somewhere
+      WHERE
+        something = $2
+    )
+    SELECT
+      w.id,
+      w.org_id,
+      w.foo,
+      w.bar
+    FROM
+      widgets as w
+    JOIN orgs as o ON w.org_id = o.id
+    WHERE w.org_id = $1
+"
+  // |> string.trim
+
+  let args = sl.parse_args(sql)
+
+  args
+  |> should.equal(Ok([
+    sl.Arg(num: 1, label: "w_org_id", opts: []),
+    sl.Arg(num: 2, label: "something", opts: []),
+  ]))
+}
+
 pub fn select_test() {
   let sql = "
     SELECT

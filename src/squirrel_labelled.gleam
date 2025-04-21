@@ -1,4 +1,5 @@
 import gleam/io
+import gleam/dict
 import gleam/set.{type Set}
 import gleam/option.{type Option, Some, None}
 import gleam/string
@@ -159,17 +160,47 @@ pub fn nullable_uuid(
 }
 
 pub fn parse_args(sql: String) -> Result(List(Arg), String) {
-  case detect_query_type(sql) {
-    Select | Update | Delete -> parse_select_update_delete_syntax(sql)
-    Insert -> parse_insert_syntax(sql)
-    Unknown | NoQuery -> {
-      io.debug(sql)
-      Error("Query type could not be detected")
+  // let sql = drop_with_statement(sql)
+  let query = with_statement(sql)
+
+  let base_args =
+    case detect_query_type(query.sql) {
+      Select | Update | Delete -> parse_select_update_delete_syntax(sql)
+      Insert -> parse_insert_syntax(sql)
+      Unknown | NoQuery -> {
+
+        io.debug(sql)
+        Error("Query type could not be detected")
+      }
     }
-  }
-  |> result.map(disambiguate_sql_keyword_args)
-  |> result.map(adjust_gleam_keyword_labelled_args)
-  |> result.map(list.unique)
+    |> result.map(disambiguate_sql_keyword_args)
+    |> result.map(adjust_gleam_keyword_labelled_args)
+    |> result.map(list.unique)
+
+  base_args
+  |> result.map(fn(base_args) {
+    query.with
+    |> option.to_result(Nil)
+    |> result.map(parse_args)
+    |> result.map(result.replace_error(_, Nil))
+    |> result.flatten
+    |> result.unwrap([])
+    |> list.append(base_args)
+    |> list.group(fn(arg) { arg.num })
+    |> dict.map_values(fn(_num, args) {
+      let opts =
+        args
+        |> list.flat_map(fn(arg) { arg.opts })
+        |> list.unique
+
+      case args {
+        [] -> None
+        [Arg(num:, label:, ..), ..] -> Some(Arg(num:, label:, opts:))
+      }
+    })
+    |> dict.values
+    |> option.values
+  })
 }
 
 type QueryType {
@@ -179,6 +210,41 @@ type QueryType {
   Insert
   Unknown
   NoQuery
+}
+
+type Query {
+  Query(
+    sql: String,
+    with: Option(String),
+  )
+}
+
+fn with_statement(sql: String) -> Query {
+  let assert Ok(initial_with_statement_and_select_re) =
+    "^\\s*WITH\\s[a-z]\\w+\\s*AS\\s*[(](.+)[)]\\s*SELECT(.+)"
+    |> regexp.compile(regexp.Options(case_insensitive: True, multi_line: True))
+
+  let matches =
+    sql
+    |> string.replace(each: "\n", with: "\t")
+    |> regexp.scan(initial_with_statement_and_select_re, _)
+
+  case matches {
+    [Match(submatches: [Some(with_body), Some(select_body)], ..)] -> {
+      let sql =
+        select_body
+        |> fn(sql) { "SELECT" <> sql }
+        |> string.replace(each: "\t", with: "\n")
+
+      let with =
+        with_body
+        |> string.replace(each: "\t", with: "\n")
+        |> Some
+
+      Query(sql:, with:)
+    }
+    _ -> Query(sql:, with: None)
+  }
 }
 
 fn detect_query_type(sql: String) -> QueryType {
