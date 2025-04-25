@@ -345,7 +345,7 @@ pub fn insert_user(
   |> should.equal(expected_wrapper_func_src)
 }
 
-pub fn squirrel_copy_and_nullify_test() {
+pub fn squirrel_insert_copy_and_nullify_test() {
   let src = "
 pub fn insert_user(db, arg_1, arg_2, arg_3) {
   let decoder = {
@@ -444,6 +444,73 @@ pub fn insert_user(db, name arg_1, email_address arg_2, org_id arg_3) {
   //   sl.Arg(num: 2, label: "email", opts: [["label", "email_address"]]),
   //   sl.Arg(num: 3, label: "org_id", opts: [["nullable"]]),
   // ])
+  |> should.equal(expected |> string.trim)
+}
+
+pub fn squirrel_update_copy_and_nullify_test() {
+  let src = "
+pub fn update_person(db, arg_1, arg_2, arg_3, arg_4, arg_5, arg_6, arg_7) {
+  let decoder = decode.map(decode.dynamic, fn(_) { Nil })
+
+  \"
+  UPDATE
+    people
+  SET
+    name = $3,
+    email = $4, --$ squirrel nullable
+    interval = $5,
+    monthly_revenue_amount = $6, --$ squirrel nullable
+    monthly_revenue_currency = $7 --$ squirrel nullable
+  WHERE org_id = $1
+    AND id = $2 --$ squirrel label person_id
+\"
+  |> pog.query
+  |> pog.parameter(pog.text(uuid.to_string(arg_1)))
+  |> pog.parameter(pog.text(uuid.to_string(arg_2)))
+  |> pog.parameter(pog.text(arg_3))
+  |> pog.parameter(pog.text(arg_4))
+  |> pog.parameter(pog.int(arg_5))
+  |> pog.parameter(pog.int(arg_6))
+  |> pog.parameter(currency_encoder(arg_7))
+  |> pog.returning(decoder)
+  |> pog.execute(db)
+}
+"
+
+  let assert [func] = sl.parse_func_srcs(src)
+
+  let expected = "
+pub fn update_person(db, org_id arg_1, person_id arg_2, name arg_3, email arg_4, interval arg_5, monthly_revenue_amount arg_6, monthly_revenue_currency arg_7) {
+  let decoder = decode.map(decode.dynamic, fn(_) { Nil })
+
+  \"
+  UPDATE
+    people
+  SET
+    name = $3,
+    email = $4, --$ squirrel nullable
+    interval = $5,
+    monthly_revenue_amount = $6, --$ squirrel nullable
+    monthly_revenue_currency = $7 --$ squirrel nullable
+  WHERE org_id = $1
+    AND id = $2 --$ squirrel label person_id
+\"
+  |> pog.query
+  |> pog.parameter(pog.text(uuid.to_string(arg_1)))
+  |> pog.parameter(pog.text(uuid.to_string(arg_2)))
+  |> pog.parameter(pog.text(arg_3))
+  |> pog.parameter(pog.nullable(pog.text, arg_4))
+  |> pog.parameter(pog.int(arg_5))
+  |> pog.parameter(pog.nullable(pog.int, arg_6))
+  |> pog.parameter(pog.nullable(sql.currency_encoder, arg_7))
+  |> pog.returning(decoder)
+  |> pog.execute(db)
+}
+"
+
+  src
+  |> string.trim
+  |> sl.adjust_squirrel_func_src(func.sql_args)
   |> should.equal(expected |> string.trim)
 }
 
