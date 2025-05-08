@@ -625,3 +625,34 @@ pub fn upsert_table_alias_test() {
   sl.parse_args(query)
   |> should.be_ok
 }
+
+// NOTE: match on `/AS/` was stripping text from some column names containing `"as"`
+pub fn regex_test() {
+  let query = string.trim("
+    INSERT INTO
+      keys as k
+      (
+        org_id,
+        asana_value,
+        last_name,
+        n1password_license_key, --$ squirrel nullable
+        n1password_login, --$ squirrel nullable
+      )
+    VALUES ( $1, $2, $3, $4, $5 )
+    WHERE k.org_id = $1
+    RETURNING
+      k.id,
+      k.n1password_license_key,
+      k.n1password_login,
+  ")
+
+  sl.parse_args(query)
+  |> should.be_ok
+  |> should.equal([
+    sl.Arg(1, "org_id", []),
+    sl.Arg(2, "asana_value", []),
+    sl.Arg(3, "last_name", []),
+    sl.Arg(4, "n1password_license_key", [["nullable"]]),
+    sl.Arg(5, "n1password_login", [["nullable"]]),
+  ])
+}

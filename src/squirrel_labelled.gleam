@@ -222,7 +222,7 @@ fn parse_cte_queries(sql: String, ctes: List(String)) -> Query {
     |> regexp.compile(regexp.Options(case_insensitive: True, multi_line: True))
 
   let assert Ok(cte_start) =
-    "^(\\s*WITH)?\\s*[a-z]\\w*\\s*AS\\s*"
+    "^(\\s*WITH)?\\s*[a-z]\\w*\\s+AS\\s+"
     |> regexp.compile(regexp.Options(case_insensitive: True, multi_line: True))
 
   let sql =
@@ -291,7 +291,7 @@ fn detect_query_type(sql: String) -> QueryType {
 
 pub fn parse_insert_syntax(sql: String) -> Result(List(Arg), String) {
   let assert Ok(insert_re) =
-    "INSERT\\s+INTO\\s+\\w+\\s+(as\\s+\\w+\\s+)?[(](.+)[)]\\s+VALUES\\s+[(](.+)[)]"
+    "INSERT\\s+INTO\\s+\\w+\\s+(AS\\s+\\w+\\s+)?[(](.+)[)]\\s+VALUES\\s+[(](.+)[)]"
     |> regexp.compile(regexp.Options(case_insensitive: True, multi_line: False))
 
   let assert Ok(label_re) =
