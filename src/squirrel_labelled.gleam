@@ -89,7 +89,7 @@ pub fn write_squirrel_wrapper_funcs_with_labelled_params(src: String) -> Nil {
         [
           [
             ["import " <> project_name <> "/sql"],
-            imports(),
+            imports(funcs_src),
           ]
           |> list.flatten
           |> string.join("\n")
@@ -118,13 +118,32 @@ fn contains_copied_squirrel_src(funcs: List(Func)) -> Bool {
   list.any(funcs, fn(func) { list.any(func.sql_args, has_nullable_opt) })
 }
 
-fn imports() -> List(String) {
+fn imports(
+  src: String,
+) -> List(String) {
   [
     "import gleam/option.{type Option, Some, None}",
     "import gleam/dynamic/decode",
     "import youid/uuid.{type Uuid}",
     "import pog",
   ]
+  |> fn(imports) {
+    case needs_json_import(src) {
+      False ->
+        imports
+
+      True ->
+        imports |> list.append([
+          "import gleam/json",
+        ])
+    }
+  }
+}
+
+fn needs_json_import(
+  src: String,
+) -> Bool {
+  string.contains(src, "json.")
 }
 
 fn uuid_decoder_func_src() -> String {
