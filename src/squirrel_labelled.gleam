@@ -109,10 +109,58 @@ pub fn write_squirrel_wrapper_funcs_with_labelled_params(src: String) -> Nil {
     }
 
 
+  let output =
+    output
+    // |> qualify_all_return_types
+    // |> strip_type_annotations
+
   let assert Ok(_) = simplifile.write(file, output)
 
   Nil
 }
+
+// ) -> Result(pog.Returned(sql.ListHubspotContactHsIdsRow), pog.QueryError) {
+fn strip_type_annotations(
+  output output: String,
+) -> String {
+  output
+  |> strip_return_type
+  |> strip_params_type
+}
+fn strip_params_type(
+  output output: String,
+) -> String {
+  let assert Ok(params_re) =
+    "(\\w+\\s+arg_\\d+)[:]\\s+.+?[,]" |> regexp.from_string
+
+  regexp.replace(
+    each: params_re,
+    in: output,
+    with: "\\1,",
+  )
+}
+fn strip_return_type(
+  output output: String,
+) -> String {
+  let assert Ok(return_re) =
+    "[)\\s+[-][>]\\s+Result[(]pog[.]Returned.+?[{]" |> regexp.from_string
+
+  regexp.replace(
+    each: return_re,
+    in: output,
+    with: "{",
+  )
+}
+
+// fn qualify_all_return_types(
+//   output output: String,
+// ) -> String {
+//   string.replace(
+//     each: "pog.Returned(",
+//     in: output,
+//     with: "pog.Returned(sql.",
+//   )
+// }
 
 fn contains_copied_squirrel_src(funcs: List(Func)) -> Bool {
   list.any(funcs, fn(func) { list.any(func.sql_args, has_nullable_opt) })
@@ -748,9 +796,66 @@ pub fn build_wrapper_func_src(func: Func, params: List(LabelledParam)) -> String
   |> string.join("\n")
 }
 
-pub fn parse_func_srcs(src: String) -> List(Func) {
-  let assert Ok(func_name_re) = regexp.from_string("pub\\s+fn\\s+(\\w+)[(]([^)]+)[)]")
+fn parse_func_name(
+  func_src src: String,
+) -> Result(String, Nil) {
+  let assert Ok(func_name_re) = regexp.from_string("pub\\s+fn\\s+(\\w+)[(]")
 
+  case regexp.scan(func_name_re, string.replace(src, each: "\n", with: " ")) {
+    [Match(_, [Some(name)])] ->
+      Ok(name)
+
+    _ ->
+      Error(Nil)
+  }
+}
+
+fn parse_params(
+  func_src src: String,
+) -> Result(List(String), Nil) {
+  let assert Ok(end_params_paren_re) =
+    "[)]\\s+[-][>]\\s+Result[(]" |> regexp.from_string
+
+  src
+  |> string.split("\n")
+  |> list.drop(1)
+  |> list.take_while(fn(str) {
+    ! regexp.check(end_params_paren_re, str)
+  })
+  |> list.map(fn(str) {
+    case str |> string.split(": ") {
+      [param] -> param
+      [param, _type] -> param
+      [] | _ -> panic
+    }
+    |> string.trim
+  })
+  |> fn(strs) {
+    case strs {
+      [] -> Error(Nil)
+      _ -> Ok(strs)
+    }
+  }
+}
+
+fn parse_query_and_args(
+  func_src src: String
+) -> Result(#(String, List(Arg)), Nil) {
+  let query = parse_query(src)
+
+  case parse_args(query) {
+    Error(err) -> {
+      io.println_error(err)
+      io.println_error(src)
+      panic as "`parse_args` failed"
+    }
+
+    Ok(sql_args) ->
+      Ok(#(query, sql_args))
+  }
+}
+
+pub fn parse_func_srcs(src: String) -> List(Func) {
   {
     let init_acc = #([], [])
     use acc, line <- list.fold(string.split(src, "\n"), init_acc)
@@ -778,35 +883,12 @@ pub fn parse_func_srcs(src: String) -> List(Func) {
     [string.join(last_func_src_lines, "\n"), ..func_srcs]
   }
   |> list.filter(fn(str) { str != "" })
-  |> list.map(fn(src) {
-    case regexp.scan(func_name_re, string.replace(src, each: "\n", with: " ")) {
-      [Match(_, [Some(name), Some(params)])] -> {
-        case string.ends_with(name, "_encoder") {
-          True -> Error(Nil)
-          False -> {
-            let params =
-              params
-              |> string.split(",")
-              |> list.map(string.trim)
+  |> list.map(fn(func_src) {
+    case parse_func_name(func_src:), parse_params(func_src:), parse_query_and_args(func_src:) {
+      Ok(name), Ok(params), Ok(#(query, sql_args)) ->
+        Ok(Func(name:, src:, query:, params:, sql_args:))
 
-            let query = parse_query(src)
-            let sql_args =
-              case parse_args(query) {
-                Error(err) -> {
-                  io.println_error(err)
-                  io.println_error(src)
-                  panic as "`parse_args` failed"
-                }
-
-                Ok(x) -> x
-              }
-
-            Ok(Func(name:, src:, query:, params:, sql_args:))
-          }
-        }
-      }
-
-      _ -> {
+      _, _, _ -> {
         io.println_error(src)
         panic as "Failed to parse func name from above source"
       }
@@ -817,11 +899,14 @@ pub fn parse_func_srcs(src: String) -> List(Func) {
     let params =
       func.params
       |> list.map(fn(param) {
+        // echo param
+        // "arg_2: List(String"
         case param |> string.split(": ") {
           [param] -> param
           [param, _type] -> param
           [] | _ -> panic
         }
+        // |> echo
       })
 
     Func(..func, params:)
