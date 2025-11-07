@@ -886,7 +886,7 @@ pub fn parse_func_srcs(src: String) -> List(Func) {
   |> list.map(fn(func_src) {
     case parse_func_name(func_src:), parse_params(func_src:), parse_query_and_args(func_src:) {
       Ok(name), Ok(params), Ok(#(query, sql_args)) ->
-        Ok(Func(name:, src:, query:, params:, sql_args:))
+        Ok(Func(name:, src: func_src, query:, params:, sql_args:))
 
       _, _, _ -> {
         io.println_error(src)
