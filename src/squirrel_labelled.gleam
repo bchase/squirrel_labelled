@@ -813,6 +813,19 @@ pub fn parse_func_srcs(src: String) -> List(Func) {
     }
   })
   |> result.values
+  |> list.map(fn(func) {
+    let params =
+      func.params
+      |> list.map(fn(param) {
+        case param |> string.split(": ") {
+          [param] -> param
+          [param, _type] -> param
+          [] | _ -> panic
+        }
+      })
+
+    Func(..func, params:)
+  })
   |> list.sort(fn(a, b) { string.compare(a.name, b.name) })
 }
 

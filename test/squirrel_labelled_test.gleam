@@ -227,7 +227,7 @@ pub type InsertUserRow {
 /// > 🐿️ This function was generated automatically using v3.0.0 of
 /// > the [squirrel package](https://github.com/giacomocavalieri/squirrel).
 ///
-pub fn insert_user(db, arg_1, arg_2, arg_3) {
+pub fn insert_user(db, arg_1: String, arg_2: String, arg_3: Uuid) -> Result(InsertUserRow, pog.QueryError) {
   let decoder = {
     use id <- decode.field(0, uuid_decoder())
     use name <- decode.field(1, decode.string)
