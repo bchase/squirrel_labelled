@@ -6,7 +6,7 @@ import gleam/string
 import gleam/int
 import gleam/result
 import gleam/list
-import gleam/regexp.{type Regexp, type Match, Match}
+import gleam/regexp.{type Regexp, Match}
 import simplifile
 import tom
 
@@ -899,14 +899,11 @@ pub fn parse_func_srcs(src: String) -> List(Func) {
     let params =
       func.params
       |> list.map(fn(param) {
-        // echo param
-        // "arg_2: List(String"
         case param |> string.split(": ") {
           [param] -> param
           [param, _type] -> param
           [] | _ -> panic
         }
-        // |> echo
       })
 
     Func(..func, params:)
@@ -915,7 +912,6 @@ pub fn parse_func_srcs(src: String) -> List(Func) {
 }
 
 fn parse_query(src: String) -> String {
-  // let assert Ok(query_start_re) = regexp.from_string("^\\s*let\\s*query\\s*=\\s*(\"(.*))?$")
   let assert Ok(query_start_re) =
     "^\\s*[\"]\\s*$"
     |> regexp.from_string
@@ -1016,6 +1012,7 @@ pub fn adjust_squirrel_func_src(
 
   [params, ..[ rest ]]
   |> string.join(")")
+  |> strip_type_annotations
 }
 
 pub fn make_parameter_nullable_on_line(

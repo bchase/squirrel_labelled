@@ -355,7 +355,12 @@ pub fn insert_user(
 
 pub fn squirrel_insert_copy_and_nullify_test() {
   let src = "
-pub fn insert_user(db, arg_1, arg_2, arg_3) {
+pub fn insert_user(
+  db: pog.Connection,
+  arg_1: Uuid,
+  arg_2: String,
+  arg_3: String,
+) -> Result(pog.Returned(InsertUser), pog.QueryError) {
   let decoder = {
     use id <- decode.field(0, uuid_decoder())
     use name <- decode.field(1, decode.string)
@@ -401,7 +406,12 @@ pub fn insert_user(db, arg_1, arg_2, arg_3) {
   let assert [func] = sl.parse_func_srcs(src)
 
   let expected = "
-pub fn insert_user(db, name arg_1, email_address arg_2, org_id arg_3) {
+pub fn insert_user(
+  db: pog.Connection,
+  name arg_1,
+  email_address arg_2,
+  org_id arg_3,
+) {
   let decoder = {
     use id <- decode.field(0, uuid_decoder())
     use name <- decode.field(1, decode.string)
