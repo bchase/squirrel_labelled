@@ -184,7 +184,7 @@ pub fn parse_args_(sql: String) -> Result(List(Arg), String) {
     Insert -> parse_insert_syntax(sql)
     Unknown | NoQuery -> {
 
-      io.debug(sql)
+      io.println_error(sql)
       Error("Query type could not be detected")
     }
   }
@@ -361,7 +361,7 @@ pub fn parse_insert_syntax(sql: String) -> Result(List(Arg), String) {
               }
 
               _ -> {
-                io.debug(str)
+                io.println_error(str)
                 panic as "could not find `INSERT` value"
               }
             }
@@ -793,8 +793,8 @@ pub fn parse_func_srcs(src: String) -> List(Func) {
             let sql_args =
               case parse_args(query) {
                 Error(err) -> {
-                  io.debug(err)
-                  io.debug(src)
+                  io.println_error(err)
+                  io.println_error(src)
                   panic as "`parse_args` failed"
                 }
 
@@ -807,7 +807,7 @@ pub fn parse_func_srcs(src: String) -> List(Func) {
       }
 
       _ -> {
-        io.debug(src)
+        io.println_error(src)
         panic as "Failed to parse func name from above source"
       }
     }
@@ -833,19 +833,19 @@ fn parse_query(src: String) -> String {
           [Match(_, [])] -> #(None, rest)
 
           [] -> {
-            io.debug(src)
+            io.println_error(src)
             panic as "missing lines after `let query` match"
           }
 
           _ -> {
-            io.debug(src)
+            io.println_error(src)
             panic as "match of `let query` has an unexpected pattern of `submatches`"
           }
         }
       }
 
       _ -> {
-        io.debug(src)
+        io.println_error(src)
         panic as "failed to match `let query`"
       }
     }
@@ -909,7 +909,7 @@ pub fn adjust_squirrel_func_src(
     |> string.split("\n")
     |> list.map(fn(line) {
       line
-      // |> io.debug
+      // |> io.println_error
       |> make_parameter_nullable_on_line(nullable_args)
       |> qualify_sql_type_constructor
       |> qualify_sql_encoder_funcs(nullable_args)
